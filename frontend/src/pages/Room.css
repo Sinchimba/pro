@@ -1,0 +1,78 @@
+.room {
+  min-height: 100%;
+  padding: 24px 32px;
+}
+
+.room-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.room-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.room-code {
+  font-family: var(--font-mono);
+  color: var(--accent);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+}
+
+.status.connected .status-dot {
+  background: var(--accent);
+}
+
+.status.connecting .status-dot {
+  background: var(--amber);
+}
+
+.leave-button {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 8px 16px;
+  font-size: 13px;
+}
+
+.leave-button:hover {
+  border-color: #d9534f;
+  color: #d9534f;
+}
+
+.video-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  margin-top: 32px;
+}

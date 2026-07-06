@@ -1,0 +1,107 @@
+.home {
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.home-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+
+
+.home h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.home p {
+  color: var(--text-muted);
+  font-size: 15px;
+  margin-bottom: 28px;
+  line-height: 1.5;
+}
+.create-button {
+  width: 100%;
+  background: var(--accent);
+  color: #0f1115;
+  padding: 16px;
+  font-size: 15px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.create-button:hover {
+  background: #7ff0dd;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.room-input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.room-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+}
+
+.room-input::placeholder {
+  color: var(--text-muted);
+}
+
+.join-button {
+  background: var(--accent);
+  color: #0f1115;
+  padding: 14px 22px;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.join-button:hover {
+  background: #7ff0dd;
+}
+
+.join-button:disabled {
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
