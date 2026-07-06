@@ -1,14 +1,87 @@
 .auth-page {
   min-height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.auth-brand-panel {
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-brand-panel .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  margin-bottom: 48px;
+}
+
+.auth-brand-panel .brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #0f1115;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-brand-panel h2 {
+  font-size: 28px;
+  line-height: 1.25;
+  max-width: 360px;
+  margin-bottom: 16px;
+}
+
+.auth-brand-panel p {
+  color: var(--text-muted);
+  font-size: 14.5px;
+  line-height: 1.6;
+  max-width: 340px;
+  margin-bottom: 36px;
+}
+
+.auth-brand-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.auth-brand-list-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 13.5px;
+}
+
+.auth-brand-list-item svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.auth-form-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
+  max-width: 380px;
 }
 
 .auth-back {
@@ -17,7 +90,7 @@
   color: var(--text-muted);
   font-size: 13px;
   padding: 0;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .auth-back:hover {
@@ -32,7 +105,7 @@
 .auth-card > p {
   color: var(--text-muted);
   font-size: 14px;
-  margin-bottom: 24px;
+  margin-bottom: 28px;
 }
 
 .field-group {
@@ -48,13 +121,18 @@
 
 .field-input {
   width: 100%;
-  background: var(--surface);
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 13px 14px;
   color: var(--text);
   font-family: var(--font-body);
   font-size: 14px;
+  transition: border-color 0.15s ease;
+}
+
+.field-input:focus-visible {
+  border-color: var(--accent);
 }
 
 .field-input::placeholder {
@@ -72,10 +150,10 @@
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  padding: 12px 8px;
-  border-radius: 8px;
+  padding: 14px 8px;
+  border-radius: 10px;
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text-muted);
   font-size: 12px;
   text-align: center;
@@ -88,17 +166,17 @@
 }
 
 .role-option-icon {
-  font-size: 18px;
+  display: flex;
 }
 
 .submit-button {
   width: 100%;
   background: var(--accent);
   color: #0f1115;
-  padding: 14px;
+  padding: 15px;
   font-size: 15px;
   border-radius: 8px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .submit-button:hover {
@@ -115,15 +193,15 @@
   background: rgba(217, 83, 79, 0.12);
   border: 1px solid rgba(217, 83, 79, 0.4);
   color: #e0736f;
-  padding: 10px 14px;
+  padding: 11px 14px;
   border-radius: 8px;
   font-size: 13px;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .auth-switch {
   text-align: center;
-  margin-top: 20px;
+  margin-top: 22px;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -134,4 +212,13 @@
   color: var(--accent);
   font-size: 13px;
   padding: 0;
+}
+
+@media (max-width: 800px) {
+  .auth-page {
+    grid-template-columns: 1fr;
+  }
+  .auth-brand-panel {
+    display: none;
+  }
 }

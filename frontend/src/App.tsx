@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Welcome } from "./pages/Welcome";
 import { SignUp } from "./pages/SignUp";
 import { Login } from "./pages/Login";
-import { Home } from "./pages/Home";
+import { Dashboard } from "./pages/Dashboard";
 import { Room } from "./pages/Room";
 import { getRoomIdFromUrl } from "./lib/roomId";
 import { useAuth } from "./context/AuthContext";
@@ -78,12 +78,12 @@ function App() {
         />
       );
     case "home":
-      return <Home onJoin={handleJoinRoom} />;
+      return <Dashboard onJoin={handleJoinRoom} />;
     case "room":
       return roomId ? (
         <Room roomId={roomId} onLeave={handleLeaveRoom} />
       ) : (
-        <Home onJoin={handleJoinRoom} />
+        <Dashboard onJoin={handleJoinRoom} />
       );
   }
 }
