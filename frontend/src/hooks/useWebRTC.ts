@@ -17,6 +17,7 @@ export function useWebRTC(roomId: string) {
   const [joined, setJoined] = useState(false);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -24,23 +25,43 @@ export function useWebRTC(roomId: string) {
   useEffect(() => {
     let cancelled = false;
 
-    async function start() {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        return;
+   async function start() {
+      try {
+        // getUserMedia requires a "secure context" — https, or localhost.
+        // Accessing the app via a plain http://<lan-ip> address (e.g. from
+        // a phone) is NOT considered secure by the browser, so this call
+        // can fail here even though everything else about the setup is fine.
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error(
+            "Camera access isn't available on this connection. If you're using an http:// LAN address instead of https:// or localhost, the browser blocks camera access for security reasons."
+          );
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+
+        socket.connect();
+        socket.emit("join-room", roomId);
+        setJoined(true);
+      } catch (err) {
+        if (!cancelled) {
+          console.error("[useWebRTC] failed to start:", err);
+          setError(
+            err instanceof Error
+              ? err.message
+              : "Could not access camera/microphone."
+          );
+        }
       }
-      localStreamRef.current = stream;
-      setLocalStream(stream);
-
-      socket.connect();
-      socket.emit("join-room", roomId);
-      setJoined(true);
     }
-
     start();
 
     function createPeerConnection(remoteSocketId: string): RTCPeerConnection {
@@ -197,5 +218,6 @@ export function useWebRTC(roomId: string) {
     isVideoEnabled,
     toggleAudio,
     toggleVideo,
+    error,
   };
 }

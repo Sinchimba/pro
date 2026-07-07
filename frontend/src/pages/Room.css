@@ -64,6 +64,17 @@
   color: #d9534f;
 }
 
+.error-banner {
+  background: rgba(217, 83, 79, 0.12);
+  border: 1px solid rgba(217, 83, 79, 0.4);
+  color: #e0736f;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 480px;
+}
+
 .video-grid {
   display: flex;
   flex-wrap: wrap;
@@ -75,4 +86,32 @@
   font-family: var(--font-mono);
   font-size: 14px;
   margin-top: 32px;
+}
+
+.room-layout {
+  display: flex;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.room-main {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+}
+
+.room-sidebar {
+  flex: 1;
+  min-width: 320px;
+  max-width: 400px;
+}
+
+@media (max-width: 1024px) {
+  .room-layout {
+    flex-direction: column;
+  }
+  .room-sidebar {
+    max-width: 100%;
+    min-width: 100%;
+  }
 }

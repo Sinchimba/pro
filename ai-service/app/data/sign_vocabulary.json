@@ -1,0 +1,152 @@
+{
+  "hello": {
+    "word": "hello",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-waving-hand-gesture-40432-large.mp4",
+    "description": "A simple wave of the hand from left to right."
+  },
+  "thankyou": {
+    "word": "thank you",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Flat hand starting from chin moving forward and down."
+  },
+  "yes": {
+    "word": "yes",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-raising-hand-in-a-classroom-41667-large.mp4",
+    "description": "Fist moving up and down mimicking a nodding head."
+  },
+  "no": {
+    "word": "no",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-finger-wagging-no-gesture-40438-large.mp4",
+    "description": "Index and middle finger tapping down onto the thumb."
+  },
+  "please": {
+    "word": "please",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-hand-gestures-explaining-something-41669-large.mp4",
+    "description": "Flat hand rubbing the chest in a circular motion."
+  },
+  "sorry": {
+    "word": "sorry",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-hand-gestures-explaining-something-41669-large.mp4",
+    "description": "A-handshape (fist) rubbing the chest in a circular motion."
+  },
+  "good": {
+    "word": "good",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Flat hand moving from mouth down to meet the other hand."
+  },
+  "bad": {
+    "word": "bad",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-finger-wagging-no-gesture-40438-large.mp4",
+    "description": "Flat hand moving from mouth down and flipping face-down."
+  },
+  "help": {
+    "word": "help",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Closed fist with thumbs-up resting on top of a flat open palm, lifted together."
+  },
+  "eat": {
+    "word": "eat",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-hand-gestures-explaining-something-41669-large.mp4",
+    "description": "Closed handshape brought to the mouth repeatedly."
+  },
+  "drink": {
+    "word": "drink",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-hand-gestures-explaining-something-41669-large.mp4",
+    "description": "C-handshape moving towards the mouth as if drinking from a cup."
+  },
+  "sleep": {
+    "word": "sleep",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-hand-gestures-explaining-something-41669-large.mp4",
+    "description": "Hand slides down the face, eyes closing as the hand descends."
+  },
+  "love": {
+    "word": "love",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Both hands crossed over the chest, fists closed."
+  },
+  "friend": {
+    "word": "friend",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Interlocking index fingers, flipping and repeating."
+  },
+  "home": {
+    "word": "home",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "O-handshape touching chin, then moving to touch the cheek near the ear."
+  },
+  "school": {
+    "word": "school",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Clapping flat hands together perpendicular to each other."
+  },
+  "work": {
+    "word": "work",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Tapping the wrist of the non-dominant hand with the fist of the dominant hand."
+  },
+  "go": {
+    "word": "go",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Index fingers pointing outward in a throwing motion."
+  },
+  "come": {
+    "word": "come",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Index fingers rolling inward towards the chest."
+  },
+  "stop": {
+    "word": "stop",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-finger-wagging-no-gesture-40438-large.mp4",
+    "description": "Dominant flat hand chopping down onto the non-dominant open palm."
+  },
+  "wait": {
+    "word": "wait",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Hands held out in front, palms up, fingers wiggling slightly."
+  },
+  "now": {
+    "word": "now",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Y-handshapes dropping downwards in front of the body."
+  },
+  "later": {
+    "word": "later",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "L-handshape pivoting forward like a clock hand ticking."
+  },
+  "today": {
+    "word": "today",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Double downward drop of the Y-handshapes."
+  },
+  "tomorrow": {
+    "word": "tomorrow",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Thumb flicking forward from the jawline."
+  },
+  "yesterday": {
+    "word": "yesterday",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Thumb touching jawline and moving backwards to touch the cheek near the ear."
+  },
+  "man": {
+    "word": "man",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Hand starting at forehead and moving down to rest on chest."
+  },
+  "woman": {
+    "word": "woman",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "Thumb starting at chin and moving down to rest on chest."
+  },
+  "family": {
+    "word": "family",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "F-handshapes starting together, circling outward and meeting again."
+  },
+  "water": {
+    "word": "water",
+    "video_url": "https://assets.mixkit.co/videos/preview/mixkit-thumbs-up-hand-gesture-40436-large.mp4",
+    "description": "W-handshape (three middle fingers extended) tapping the chin."
+  }
+}

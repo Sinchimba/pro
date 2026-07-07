@@ -1,7 +1,7 @@
 import { io, Socket } from "socket.io-client";
 
-// Change this if your backend runs on a different URL/port.
-const BACKEND_URL = "http://localhost:4000";
+// Read from Vite environment variables (e.g. from .env or .env.local)
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
 
 // One shared socket connection for the whole app.
 export const socket: Socket = io(BACKEND_URL, {

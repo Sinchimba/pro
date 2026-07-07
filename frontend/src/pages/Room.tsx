@@ -1,6 +1,10 @@
 import { useWebRTC } from "../hooks/useWebRTC";
+import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
+import { useSignMatcher } from "../hooks/useSignMatcher";
 import { VideoTile } from "../components/VideoCall/VideoTile";
 import { CallControls } from "../components/VideoCall/CallControls";
+import { CaptionsOverlay } from "../components/Captions/CaptionsOverlay";
+import { SignPanel } from "../components/SignPanel/SignPanel";
 import { buildRoomLink } from "../lib/roomId";
 import "./Room.css";
 
@@ -10,6 +14,9 @@ interface RoomProps {
 }
 
 export function Room({ roomId, onLeave }: RoomProps) {
+  const { user } = useAuth();
+  const userRole = user?.role || "normal";
+
   const {
     localStream,
     remoteStreams,
@@ -18,10 +25,36 @@ export function Room({ roomId, onLeave }: RoomProps) {
     isVideoEnabled,
     toggleAudio,
     toggleVideo,
+    error,
   } = useWebRTC(roomId);
 
+  const { transcript, isSupported } = useSpeechRecognition(
+    joined && isAudioEnabled
+  );
+
+  const activeSign = useSignMatcher(transcript);
+
   function handleCopyLink() {
-    navigator.clipboard.writeText(buildRoomLink(roomId));
+    const link = buildRoomLink(roomId);
+    navigator.clipboard.writeText(link).catch((err) => {
+      console.error("Failed to copy link:", err);
+    });
+  }
+
+  if (error) {
+    return (
+      <div className="room">
+        <div className="room-header">
+          <h2>
+            Room <span className="room-code">{roomId}</span>
+          </h2>
+        </div>
+        <div className="error-banner">{error}</div>
+        <button className="leave-button" onClick={onLeave} style={{ marginTop: 16 }}>
+          Leave
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -36,34 +69,26 @@ export function Room({ roomId, onLeave }: RoomProps) {
         </span>
       </div>
 
-      <div className="video-grid">
-        {localStream && (
-          <VideoTile
-            stream={localStream}
-            label="You"
-            muted
-            videoOff={!isVideoEnabled}
+      <div className="room-layout">
+        <div className="room-main">
+          <VideoCall
+            localStream={localStream}
+            remoteStreams={remoteStreams}
+            isAudioEnabled={isAudioEnabled}
+            isVideoEnabled={isVideoEnabled}
+            onToggleAudio={toggleAudio}
+            onToggleVideo={toggleVideo}
+            onLeave={onLeave}
+            onCopyLink={handleCopyLink}
           />
-        )}
-        {remoteStreams.map((r) => (
-          <VideoTile key={r.socketId} stream={r.stream} label={r.socketId} />
-        ))}
+        </div>
+        <div className="room-sidebar">
+          <SignPanel userRole={userRole} />
+        </div>
       </div>
 
-      {remoteStreams.length === 0 && (
-        <p className="empty-state">
-          // share the invite link below so someone else can join…
-        </p>
-      )}
-
-      <CallControls
-        isAudioEnabled={isAudioEnabled}
-        isVideoEnabled={isVideoEnabled}
-        onToggleAudio={toggleAudio}
-        onToggleVideo={toggleVideo}
-        onLeave={onLeave}
-        onCopyLink={handleCopyLink}
-      />
+      <CaptionsOverlay transcript={transcript} isSupported={isSupported} />
+      <SignPanel activeSign={activeSign} />
     </div>
   );
 }

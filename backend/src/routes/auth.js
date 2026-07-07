@@ -2,12 +2,11 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { db } from "../db/connection.js";
+import { config } from "../config/env.js";
 
 const router = express.Router();
 
-// In production (Render), set a real JWT_SECRET env var.
-// This fallback is only for local dev so the server doesn't crash.
-const JWT_SECRET = process.env.JWT_SECRET || "dev-only-secret-change-me";
+const JWT_SECRET = config.JWT_SECRET;
 const VALID_ROLES = ["normal", "deaf", "mute"];
 
 router.post("/signup", async (req, res) => {
