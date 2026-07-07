@@ -2,12 +2,12 @@ import { useWebRTC } from "../hooks/useWebRTC";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { useSignMatcher } from "../hooks/useSignMatcher";
 import { useGestureRecognition } from "../hooks/useGestureRecognition";
-import { VideoTile } from "../components/VideoCall/VideoTile";
-import { CallControls } from "../components/VideoCall/CallControls";
+import { VideoCall } from "../components/VideoCall/VideoCall";
 import { CaptionsOverlay } from "../components/Captions/CaptionsOverlay";
 import { SignPanel } from "../components/SignPanel/SignPanel";
 import { RecognitionPanel } from "../components/SignPanel/RecognitionPanel";
 import { buildRoomLink } from "../lib/roomId";
+import { useAuth } from "../context/AuthContext";
 import "./Room.css";
 
 interface RoomProps {
@@ -91,17 +91,20 @@ export function Room({ roomId, onLeave }: RoomProps) {
           />
         </div>
         <div className="room-sidebar">
-          <SignPanel userRole={userRole} />
+          {(userRole === "deaf" || userRole === "normal") && (
+            <SignPanel activeSign={activeSign} />
+          )}
+          {userRole === "mute" && (
+            <RecognitionPanel
+              result={recognitionResult}
+              isLoading={recognitionLoading}
+              loadError={recognitionError}
+            />
+          )}
         </div>
       </div>
       
-<CaptionsOverlay transcript={transcript} isSupported={isSupported} />
-      <SignPanel activeSign={activeSign} />
-      <RecognitionPanel
-        result={recognitionResult}
-        isLoading={recognitionLoading}
-        loadError={recognitionError}
-      />
+      <CaptionsOverlay transcript={transcript} isSupported={isSupported} />
     </div>
   );
 }

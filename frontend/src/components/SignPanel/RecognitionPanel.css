@@ -1,13 +1,8 @@
 .recognition-panel {
-  position: fixed;
-  bottom: 110px;
-  left: 24px;
-  width: 200px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  z-index: 20;
 }
 
 .recognition-panel-header {

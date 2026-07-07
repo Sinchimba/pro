@@ -1,13 +1,8 @@
 .sign-panel {
-  position: fixed;
-  bottom: 110px;
-  right: 24px;
-  width: 220px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
-  z-index: 20;
 }
 
 .sign-panel-header {

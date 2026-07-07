@@ -34,3 +34,11 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
   },
 });
+
+// Mount socket handlers
+setupSignaling(io);
+
+const PORT = config.PORT;
+httpServer.listen(PORT, () => {
+  console.log(`Signaling server running on port ${PORT}`);
+});
