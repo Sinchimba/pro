@@ -1,10 +1,12 @@
 import { useWebRTC } from "../hooks/useWebRTC";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { useSignMatcher } from "../hooks/useSignMatcher";
+import { useGestureRecognition } from "../hooks/useGestureRecognition";
 import { VideoTile } from "../components/VideoCall/VideoTile";
 import { CallControls } from "../components/VideoCall/CallControls";
 import { CaptionsOverlay } from "../components/Captions/CaptionsOverlay";
 import { SignPanel } from "../components/SignPanel/SignPanel";
+import { RecognitionPanel } from "../components/SignPanel/RecognitionPanel";
 import { buildRoomLink } from "../lib/roomId";
 import "./Room.css";
 
@@ -33,6 +35,12 @@ export function Room({ roomId, onLeave }: RoomProps) {
   );
 
   const activeSign = useSignMatcher(transcript);
+
+  const {
+    result: recognitionResult,
+    isLoading: recognitionLoading,
+    loadError: recognitionError,
+  } = useGestureRecognition(localStream, joined && isVideoEnabled);
 
   function handleCopyLink() {
     const link = buildRoomLink(roomId);
@@ -86,9 +94,14 @@ export function Room({ roomId, onLeave }: RoomProps) {
           <SignPanel userRole={userRole} />
         </div>
       </div>
-
-      <CaptionsOverlay transcript={transcript} isSupported={isSupported} />
+      
+<CaptionsOverlay transcript={transcript} isSupported={isSupported} />
       <SignPanel activeSign={activeSign} />
+      <RecognitionPanel
+        result={recognitionResult}
+        isLoading={recognitionLoading}
+        loadError={recognitionError}
+      />
     </div>
   );
 }

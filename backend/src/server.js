@@ -10,27 +10,27 @@ import { setupSignaling } from "./sockets/signaling.js";
 
 const app = express();
 
-app.use(cors());
+// In production (Render), set FRONTEND_URL to your deployed frontend's
+// exact URL so only your own site can talk to this backend. Falls back
+// to allowing everything, which is fine for local development.
+const FRONTEND_URL = process.env.FRONTEND_URL || "*";
+app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json());
 
 app.use("/auth", authRoutes);
-app.use("/health", healthRoutes);
+
+// Simple health check — useful once this is deployed on Render,
+// so you can confirm the service is alive before debugging WebRTC.
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", timestamp: Date.now() });
+});
 
 const httpServer = createServer(app);
 
-// Socket.io server. In production (Render) you can restrict
-// origin to your actual frontend URL instead of "*".
+// Socket.io server, using the same origin restriction as above.
 const io = new Server(httpServer, {
   cors: {
-    origin: "*",
+    origin: FRONTEND_URL,
     methods: ["GET", "POST"],
   },
-});
-
-// Mount socket handlers
-setupSignaling(io);
-
-const PORT = config.PORT;
-httpServer.listen(PORT, () => {
-  console.log(`Signaling server running on port ${PORT}`);
 });
