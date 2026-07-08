@@ -1,0 +1,140 @@
+.background-settings-panel {
+  position: fixed;
+  bottom: 90px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320px;
+  max-height: 400px;
+  background: var(--mr-surface);
+  border: 1px solid var(--mr-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  z-index: 35;
+  overflow: hidden;
+}
+
+.bg-settings-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--mr-border);
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bg-settings-header button {
+  background: none;
+  border: none;
+  color: var(--mr-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.bg-settings-body {
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.bg-settings-intro {
+  font-size: 12px;
+  color: var(--mr-text-muted);
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
+.bg-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bg-option-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--mr-border);
+  background: var(--mr-bg);
+  color: var(--mr-text);
+  border-radius: 8px;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.bg-option-card:hover {
+  border-color: var(--mr-accent);
+  background: var(--surface-raised);
+  transform: translateY(-1px);
+}
+
+.bg-option-card.active {
+  border-color: var(--mr-accent);
+  background: rgba(94, 234, 212, 0.08);
+  box-shadow: 0 0 8px rgba(94, 234, 212, 0.15);
+}
+
+.bg-option-preview {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: var(--mr-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+  border: 1px solid var(--mr-border);
+}
+
+.bg-option-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.bg-option-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bg-option-desc {
+  font-size: 11px;
+  color: var(--mr-text-muted);
+  margin-top: 1px;
+}
+
+/* Light Theme overrides */
+.meeting-room.light-theme .background-settings-panel {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+}
+
+.meeting-room.light-theme .bg-settings-header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.meeting-room.light-theme .bg-option-card {
+  background: #f8f9fa;
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #3c4043;
+}
+
+.meeting-room.light-theme .bg-option-card:hover {
+  background: #f1f3f4;
+  border-color: #1a73e8;
+}
+
+.meeting-room.light-theme .bg-option-card.active {
+  background: rgba(26, 115, 232, 0.08);
+  border-color: #1a73e8;
+}
+
+.meeting-room.light-theme .bg-option-preview {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+}

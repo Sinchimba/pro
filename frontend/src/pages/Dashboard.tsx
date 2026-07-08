@@ -41,8 +41,14 @@ export function Dashboard({ onJoin }: DashboardProps) {
   }
 
   function handleJoin() {
-    const trimmed = joinCode.trim();
-    if (trimmed) onJoin(trimmed);
+    let trimmed = joinCode.trim();
+    if (trimmed) {
+      const match = trimmed.match(/\/room\/([^/]+)$/);
+      if (match) {
+        trimmed = match[1];
+      }
+      onJoin(trimmed);
+    }
   }
 
   return (
