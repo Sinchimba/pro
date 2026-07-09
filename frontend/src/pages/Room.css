@@ -210,7 +210,6 @@
   height: 100%;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   align-content: center;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Layouts Specific Styling */
@@ -234,11 +233,37 @@
   aspect-ratio: 16 / 9;
   border: 3px solid transparent;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
   will-change: transform, border-color;
   transform: translate3d(0,0,0);
 }
 
+/* Float translation bubble in each tile */
+.tile-translation-bubble {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(26, 115, 232, 0.95);
+  backdrop-filter: blur(8px);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13.5px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  z-index: 5;
+  pointer-events: none;
+  animation: pop-up-bubble 0.25s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+}
+
+@keyframes pop-up-bubble {
+  0% { transform: translate(-50%, 12px) scale(0.85); opacity: 0; }
+  100% { transform: translate(-50%, 0) scale(1); opacity: 1; }
+}
 .mr-tile.is-speaker {
   border-color: var(--mr-accent);
   box-shadow: 0 0 16px rgba(26, 115, 232, 0.4);

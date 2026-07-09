@@ -1,0 +1,208 @@
+.sign-trans-panel-floating {
+  position: absolute;
+  bottom: 110px; /* Float above the controls toolbar */
+  left: 50%;
+  margin-left: -220px; /* Centered by default */
+  background: rgba(32, 33, 36, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 25;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  user-select: none;
+}
+
+.sign-trans-panel-floating.active {
+  border-color: rgba(0, 180, 216, 0.4);
+  box-shadow: 0 12px 40px rgba(0, 180, 216, 0.15);
+}
+
+.sign-trans-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: grab;
+}
+
+.sign-trans-panel-header:active {
+  cursor: grabbing;
+}
+
+.drag-indicator {
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 14px;
+  margin-right: 2px;
+}
+
+.hand-indicator-icon {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.hand-indicator-icon.pulse {
+  color: #00b4d8;
+  animation: sign-hand-pulse 2s infinite ease-in-out;
+}
+
+@keyframes sign-hand-pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  flex-grow: 1;
+  letter-spacing: 0.02em;
+}
+
+.sign-trans-toggle-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.8);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.sign-trans-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.sign-trans-toggle-btn.enabled {
+  background: #00b4d8;
+  border-color: #00b4d8;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 180, 216, 0.4);
+}
+
+.sign-trans-panel-controls {
+  display: flex;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.sign-trans-dropdown {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.sign-trans-dropdown:focus {
+  border-color: #00b4d8;
+}
+
+.sign-trans-dropdown:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sign-trans-panel-body {
+  padding: 14px;
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.sign-trans-placeholder,
+.sign-trans-idle,
+.sign-trans-loading {
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.sign-trans-loading {
+  color: #00b4d8;
+  font-weight: 500;
+}
+
+.sign-trans-error {
+  font-size: 12px;
+  color: #ff6b6b;
+  text-align: center;
+}
+
+/* Color-coded Output Captions specifically for Sign Language Translation */
+.sign-trans-output-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.sign-trans-text {
+  font-size: 20px;
+  font-weight: 700;
+  color: #00f5d4; /* Vibrant distinct cyan/turquoise color */
+  text-align: center;
+  margin: 0;
+  text-shadow: 0 2px 10px rgba(0, 245, 212, 0.3);
+  animation: sign-text-appear 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes sign-text-appear {
+  0% { transform: translateY(6px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.sign-trans-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sign-trans-badge {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: rgba(0, 245, 212, 0.15);
+  color: #00f5d4;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 245, 212, 0.25);
+}
+
+.sign-trans-confidence {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.4);
+}
+
+/* Resize handle styling */
+.resize-handle {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  cursor: se-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(255, 255, 255, 0.2) 50%);
+  border-bottom-right-radius: 16px;
+}

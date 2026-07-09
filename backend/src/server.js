@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 import authRoutes from "./routes/auth.js";
+import translateRoutes from "./routes/translate.js";
 import "./db/connection.js";
 
 const app = express();
@@ -12,9 +13,11 @@ const app = express();
 // to allowing everything, which is fine for local development.
 const FRONTEND_URL = process.env.FRONTEND_URL || "*";
 app.use(cors({ origin: FRONTEND_URL }));
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use("/auth", authRoutes);
+app.use("/api", translateRoutes);
 
 // Simple health check — useful once this is deployed on Render,
 // so you can confirm the service is alive before debugging WebRTC.
@@ -126,6 +129,20 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("raise-hand", {
       socketId: socket.id,
       raised,
+    });
+  });
+
+  // Sign translations — relayed to everyone else in the room, not persisted.
+  socket.on("sign-translation", ({ roomId, word, confidence, mode }) => {
+    const room = rooms.get(roomId);
+    const displayName = room?.users.get(socket.id) || "Guest";
+    socket.to(roomId).emit("sign-translation", {
+      socketId: socket.id,
+      name: displayName,
+      word,
+      confidence,
+      mode,
+      timestamp: Date.now(),
     });
   });
 

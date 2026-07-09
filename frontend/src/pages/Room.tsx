@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useWebRTC } from "../hooks/useWebRTC";
+import { socket } from "../lib/socket";
 import { useActiveSpeaker } from "../hooks/useActiveSpeaker";
 import { useChat } from "../hooks/useChat";
 import { useRaiseHand } from "../hooks/useRaiseHand";
@@ -13,6 +14,7 @@ import { RecognitionPanel } from "../components/SignPanel/RecognitionPanel";
 import { ChatPanel } from "../components/VideoCall/ChatPanel";
 import { ReactionOverlay } from "../components/VideoCall/ReactionOverlay";
 import { TranslationPanel } from "../components/VideoCall/TranslationPanel";
+import { SignTranslationPanel } from "../components/VideoCall/SignTranslationPanel";
 import { BackgroundSettings } from "../components/VideoCall/BackgroundSettings";
 import type { BackgroundEffect } from "../components/VideoCall/BackgroundSettings";
 import {
@@ -99,7 +101,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
   const [layout, setLayout] = useState<LayoutMode>("grid");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
-  
+
   // Video mirror toggle state per tile
   const [mirroredTiles, setMirroredTiles] = useState<Record<string, boolean>>({});
 
@@ -130,6 +132,81 @@ export function Room({ roomId, onLeave }: RoomProps) {
     };
   }, [transcript]);
 
+  // Track active sign translations for each user tile
+  const [activeTranslations, setActiveTranslations] = useState<Record<string, { word: string; timestamp: number }>>({});
+
+  // Socket listener for incoming sign translations
+  useEffect(() => {
+    function handleIncomingTranslation({
+      socketId,
+      word,
+    }: {
+      socketId: string;
+      name: string;
+      word: string;
+      confidence: number;
+      mode: string;
+    }) {
+      // 1. Show the translation on the sender's video tile
+      setActiveTranslations((prev) => ({
+        ...prev,
+        [socketId]: { word, timestamp: Date.now() },
+      }));
+
+      // 2. Clear translation badge after 3 seconds of inactivity
+      setTimeout(() => {
+        setActiveTranslations((prev) => {
+          const current = prev[socketId];
+          if (current && Date.now() - current.timestamp >= 3000) {
+            const next = { ...prev };
+            delete next[socketId];
+            return next;
+          }
+          return prev;
+        });
+      }, 3000);
+
+      // 3. Play Text-to-Speech (TTS) for other users' sign translations
+      if (socketId !== socket.id) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    socket.on("sign-translation", handleIncomingTranslation);
+    return () => {
+      socket.off("sign-translation", handleIncomingTranslation);
+      window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  // Watch for mute user's local gesture recognition and broadcast it
+  useEffect(() => {
+    if (joined && recognitionResult && recognitionResult.text) {
+      socket.emit("sign-translation", {
+        roomId,
+        word: recognitionResult.text,
+        confidence: 1.0,
+        mode: "local",
+      });
+      setActiveTranslations((prev) => ({
+        ...prev,
+        local: { word: recognitionResult.text, timestamp: Date.now() },
+      }));
+      setTimeout(() => {
+        setActiveTranslations((prev) => {
+          const current = prev.local;
+          if (current && Date.now() - current.timestamp >= 3000) {
+            const next = { ...prev };
+            delete next.local;
+            return next;
+          }
+          return prev;
+        });
+      }, 3000);
+    }
+  }, [recognitionResult, joined, roomId]);
+
   // Local stream background processing canvas pipeline
   useEffect(() => {
     if (!localStream) {
@@ -146,7 +223,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
     video.srcObject = localStream;
     video.muted = true;
     video.playsInline = true;
-    video.play().catch(() => {});
+    video.play().catch(() => { });
 
     const canvas = document.createElement("canvas");
     canvas.width = 640;
@@ -398,6 +475,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
                   isSpeaker={activeSpeakerId === tile.id}
                   isMirrored={!!mirroredTiles[tile.id]}
                   onToggleMirror={() => toggleMirror(tile.id)}
+                  activeTranslation={activeTranslations[tile.id === "local" ? "local" : tile.id]?.word}
                 />
               ))}
             </div>
@@ -405,6 +483,39 @@ export function Room({ roomId, onLeave }: RoomProps) {
 
           {/* Real-time floating non-intrusive language translator */}
           <TranslationPanel transcript={throttledTranscript} />
+
+          {/* Floating Sign Language Translation Panel (Draggable & Resizable) */}
+          <SignTranslationPanel
+            stream={localStream}
+            onTranslation={(word, confidence, mode) => {
+              if (joined) {
+                // Emit to other users
+                socket.emit("sign-translation", {
+                  roomId,
+                  word,
+                  confidence,
+                  mode,
+                });
+                // Update local tile overlay
+                setActiveTranslations((prev) => ({
+                  ...prev,
+                  local: { word, timestamp: Date.now() },
+                }));
+                // Automatically clear local translation after 3 seconds
+                setTimeout(() => {
+                  setActiveTranslations((prev) => {
+                    const current = prev.local;
+                    if (current && Date.now() - current.timestamp >= 3000) {
+                      const next = { ...prev };
+                      delete next.local;
+                      return next;
+                    }
+                    return prev;
+                  });
+                }, 3000);
+              }
+            }}
+          />
 
           {/* Floating reactions animations overlay */}
           <ReactionOverlay roomId={roomId} />
@@ -642,11 +753,13 @@ function VideoTileCard({
   isSpeaker,
   isMirrored,
   onToggleMirror,
+  activeTranslation,
 }: {
   tile: Tile;
   isSpeaker: boolean;
   isMirrored: boolean;
   onToggleMirror: () => void;
+  activeTranslation?: string;
 }) {
   return (
     <div
@@ -655,7 +768,7 @@ function VideoTileCard({
       {tile.stream && !tile.videoOff && (
         <VideoElement stream={tile.stream} muted={tile.id === "local"} />
       )}
-      
+
       {tile.stream && !tile.videoOff && (
         <button
           className="mr-tile-mirror-btn"
@@ -681,6 +794,11 @@ function VideoTileCard({
           <HandRaiseIcon size={14} />
         </span>
       )}
+      {activeTranslation && (
+        <div className="tile-translation-bubble">
+          <span className="translation-text-content">{activeTranslation}</span>
+        </div>
+      )}
       <div className="mr-tile-name-bar">
         <span>{tile.name}</span>
         {tile.isHost && <CrownIcon size={14} className="crown" />}
@@ -696,14 +814,23 @@ function VideoElement({
   stream: MediaStream;
   muted: boolean;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      if (video.srcObject !== stream) {
+        video.srcObject = stream;
+      }
+    }
+  }, [stream]);
+
   return (
     <video
+      ref={videoRef}
       autoPlay
       playsInline
       muted={muted}
-      ref={(el) => {
-        if (el) el.srcObject = stream;
-      }}
     />
   );
 }
