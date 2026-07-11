@@ -38,13 +38,23 @@ export const SIGN_VOCABULARY: SignEntry[] = [
  * inside the given text. Case-insensitive. Returns null if no match.
  */
 export function matchSignWord(text: string): SignEntry | null {
-  const lower = text.toLowerCase();
-  for (const entry of SIGN_VOCABULARY) {
-    // Word-boundary match so "hi" doesn't match inside "history", etc.
-    const pattern = new RegExp(`\\b${entry.word}\\b`, "i");
-    if (pattern.test(lower)) {
-      return entry;
+  const words = text.toLowerCase().split(/\s+/).filter(Boolean);
+  
+  // Iterate backwards from the end of the text to identify the most recently spoken sign word/phrase
+  for (let i = words.length - 1; i >= 0; i--) {
+    const word = words[i];
+    
+    // Check multi-word phrases by joining preceding words
+    for (const len of [6, 5, 4, 3, 2]) {
+      if (i - len + 1 >= 0) {
+        const phrase = words.slice(i - len + 1, i + 1).join(" ");
+        const match = SIGN_VOCABULARY.find(entry => entry.word.toLowerCase() === phrase);
+        if (match) return match;
+      }
     }
+
+    const match = SIGN_VOCABULARY.find(entry => entry.word.toLowerCase() === word);
+    if (match) return match;
   }
   return null;
 }

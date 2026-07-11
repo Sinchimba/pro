@@ -195,6 +195,12 @@ export function useWebRTC(roomId: string, displayName: string) {
       pendingNames.current.set(socketId, name);
     }
 
+    function handleRoomFull({ roomId, max }: { roomId: string; max: number }) {
+      setError(`Room "${roomId}" is full. Only a maximum of ${max} participants are allowed.`);
+      setJoined(false);
+      socket.disconnect();
+    }
+
     socket.on("existing-users", handleExistingUsers);
     socket.on("user-joined", trackName);
     socket.on("user-joined", handleUserJoined);
@@ -203,6 +209,7 @@ export function useWebRTC(roomId: string, displayName: string) {
     socket.on("ice-candidate", handleIceCandidate);
     socket.on("user-left", handleUserLeft);
     socket.on("host-changed", handleHostChanged);
+    socket.on("room-full", handleRoomFull);
 
     return () => {
       cancelled = true;
@@ -214,6 +221,7 @@ export function useWebRTC(roomId: string, displayName: string) {
       socket.off("ice-candidate", handleIceCandidate);
       socket.off("user-left", handleUserLeft);
       socket.off("host-changed", handleHostChanged);
+      socket.off("room-full", handleRoomFull);
 
       socket.emit("leave-room");
       socket.disconnect();

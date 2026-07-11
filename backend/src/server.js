@@ -2,9 +2,13 @@ import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
 import translateRoutes from "./routes/translate.js";
 import "./db/connection.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -23,6 +27,20 @@ app.use("/api", translateRoutes);
 // so you can confirm the service is alive before debugging WebRTC.
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
+});
+
+const distPath = path.join(__dirname, "../../frontend/dist");
+app.use(express.static(distPath));
+
+app.get("*", (req, res, next) => {
+  if (
+    req.path.startsWith("/auth") ||
+    req.path.startsWith("/api") ||
+    req.path.startsWith("/health")
+  ) {
+    return next();
+  }
+  res.sendFile(path.join(distPath, "index.html"));
 });
 
 const httpServer = createServer(app);
@@ -48,6 +66,14 @@ io.on("connection", (socket) => {
 
   // Step 1: A user wants to join a specific room (meeting code/link).
   socket.on("join-room", ({ roomId, displayName }) => {
+    if (rooms.has(roomId)) {
+      const room = rooms.get(roomId);
+      if (room.users.size >= 5) {
+        socket.emit("room-full", { roomId, max: 5 });
+        return;
+      }
+    }
+
     socket.join(roomId);
 
     if (!rooms.has(roomId)) {
@@ -143,6 +169,14 @@ io.on("connection", (socket) => {
       confidence,
       mode,
       timestamp: Date.now(),
+    });
+  });
+
+  // Speech transcripts — relayed to everyone else in the room for visual avatar translation.
+  socket.on("speech-transcript", ({ roomId, transcript }) => {
+    socket.to(roomId).emit("speech-transcript", {
+      socketId: socket.id,
+      transcript,
     });
   });
 

@@ -25,9 +25,11 @@ router.post("/signup", async (req, res) => {
         .json({ error: "Password must be at least 6 characters." });
     }
 
-    const existing = db
-      .prepare("SELECT id FROM users WHERE email = ?")
-      .get(email);
+    const existingResult = await db.query(
+      "SELECT id FROM users WHERE email = $1",
+      [email]
+    );
+    const existing = existingResult.rows[0];
     if (existing) {
       return res
         .status(409)
@@ -36,14 +38,13 @@ router.post("/signup", async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = db
-      .prepare(
-        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)"
-      )
-      .run(name, email, passwordHash, role);
+    const result = await db.query(
+      "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id",
+      [name, email, passwordHash, role]
+    );
 
     const user = {
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       name,
       email,
       role,
@@ -66,7 +67,11 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password are required." });
     }
 
-    const row = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
+    const result = await db.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+    const row = result.rows[0];
     if (!row) {
       return res.status(401).json({ error: "Invalid email or password." });
     }

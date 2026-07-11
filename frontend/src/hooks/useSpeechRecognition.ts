@@ -61,8 +61,8 @@ export function useSpeechRecognition(enabled: boolean) {
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let combined = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        combined += event.results[i][0].transcript;
+      for (let i = 0; i < event.results.length; i++) {
+        combined += event.results[i][0].transcript + " ";
       }
       setTranscript(combined.trim());
     };

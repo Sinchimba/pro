@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { GestureRecognizer, FilesetResolver } from "@mediapipe/tasks-vision";
 
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:4000";
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:4000");
 
 interface TranslationResult {
   word: string;
@@ -22,9 +22,10 @@ export function useSignLanguageTranslation(
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const recognizerRef = useRef<GestureRecognizer | null>(null);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastSpokenRef = useRef<string | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevImageDataRef = useRef<Uint8ClampedArray | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load MediaPipe locally (only when local mode is selected or for fallback)
   useEffect(() => {
@@ -64,7 +65,8 @@ export function useSignLanguageTranslation(
   // Frame Capture & API Translation Loop
   useEffect(() => {
     if (!enabled || !stream) {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      prevImageDataRef.current = null;
       return;
     }
 
@@ -90,6 +92,38 @@ export function useSignLanguageTranslation(
 
       // Draw and resize the video frame onto the canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const data = imgData.data;
+
+      // Motion detection by temporal frame-differencing to optimize efficiency
+      let motionDetected = false;
+      if (prevImageDataRef.current) {
+        let diffPixels = 0;
+        const totalSampledPixels = data.length / 16; // sampling every 4th pixel to save CPU
+        for (let i = 0; i < data.length; i += 16) {
+          const rDiff = Math.abs(data[i] - prevImageDataRef.current[i]);
+          const gDiff = Math.abs(data[i + 1] - prevImageDataRef.current[i + 1]);
+          const bDiff = Math.abs(data[i + 2] - prevImageDataRef.current[i + 2]);
+          if (rDiff + gDiff + bDiff > 35) { // Color difference threshold
+            diffPixels++;
+          }
+        }
+        
+        const motionRatio = diffPixels / totalSampledPixels;
+        // If more than 1.5% of pixels changed, we consider it active motion (e.g. hand movements)
+        motionDetected = motionRatio > 0.015;
+      } else {
+        // First frame always counts as motion to initialize state
+        motionDetected = true;
+      }
+      
+      prevImageDataRef.current = data;
+
+      // If no motion is detected, we skip recognition processing to save battery and network bandwidth
+      if (!motionDetected) {
+        return;
+      }
 
       if (mode === "local") {
         // --- LOCAL CLASSIFICATION (MediaPipe) ---
@@ -156,11 +190,19 @@ export function useSignLanguageTranslation(
       }
     }
 
-    // Run frame capturing loop every 1.3 seconds
-    intervalRef.current = setInterval(processFrame, 1300);
+    // Adaptive recursive setTimeout loop for ultra-fast, non-overlapping updates
+    async function runLoop() {
+      if (!enabled || !stream) return;
+      await processFrame();
+      const delay = mode === "local" ? 300 : 800; // 300ms for local MediaPipe (fast), 800ms for cloud Gemini
+      timeoutRef.current = setTimeout(runLoop, delay);
+    }
+
+    runLoop();
 
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      prevImageDataRef.current = null;
       video.pause();
       video.srcObject = null;
     };

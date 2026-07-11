@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Welcome } from "./pages/Welcome";
 import { SignUp } from "./pages/SignUp";
 import { Login } from "./pages/Login";
@@ -25,6 +25,14 @@ function App() {
     if (user) return "home";
     return "welcome";
   });
+
+  // Watch for logout (when user becomes null) and redirect to welcome
+  useEffect(() => {
+    if (!user) {
+      setView("welcome");
+      setRoomId(null);
+    }
+  }, [user]);
 
   // Keep roomId in sync with the pending link once we land in "room" view.
   if (view === "room" && !roomId && pendingRoomId) {

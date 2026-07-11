@@ -5,7 +5,7 @@
   transform: translateX(-50%);
   max-width: 640px;
   width: 90%;
-  background: rgba(15, 17, 21, 0.85);
+
   backdrop-filter: blur(6px);
   border: 1px solid var(--border);
   border-radius: 10px;

@@ -6,7 +6,7 @@ import { useActiveSpeaker } from "../hooks/useActiveSpeaker";
 import { useChat } from "../hooks/useChat";
 import { useRaiseHand } from "../hooks/useRaiseHand";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { useSignMatcher } from "../hooks/useSignMatcher";
+import { useSignMatcher, type TranscriptAction } from "../hooks/useSignMatcher";
 import { useGestureRecognition } from "../hooks/useGestureRecognition";
 import { CaptionsOverlay } from "../components/Captions/CaptionsOverlay";
 import { SignPanel } from "../components/SignPanel/SignPanel";
@@ -85,7 +85,53 @@ export function Room({ roomId, onLeave }: RoomProps) {
   const { transcript, isSupported } = useSpeechRecognition(
     joined && isAudioEnabled
   );
-  const activeSign = useSignMatcher(transcript);
+
+  const [lastTranscriptAction, setLastTranscriptAction] = useState<TranscriptAction | null>(null);
+
+  // Update last active transcript action when local user speaks
+  useEffect(() => {
+    if (transcript) {
+      setLastTranscriptAction({
+        text: transcript,
+        timestamp: Date.now(),
+        senderId: "local",
+      });
+    }
+  }, [transcript]);
+
+  // Share our local transcript with remote members
+  useEffect(() => {
+    if (joined && transcript) {
+      socket.emit("speech-transcript", { roomId, transcript });
+    }
+  }, [transcript, joined, roomId]);
+
+  // Listen to remote transcripts
+  useEffect(() => {
+    function handleIncomingTranscript({
+      socketId,
+      transcript: text,
+    }: {
+      socketId: string;
+      transcript: string;
+    }) {
+      if (text) {
+        setLastTranscriptAction({
+          text,
+          timestamp: Date.now(),
+          senderId: socketId,
+        });
+      }
+    }
+
+    socket.on("speech-transcript", handleIncomingTranscript);
+
+    return () => {
+      socket.off("speech-transcript", handleIncomingTranscript);
+    };
+  }, []);
+
+  const activeSign = useSignMatcher(lastTranscriptAction);
   const {
     result: recognitionResult,
     isLoading: recognitionLoading,
@@ -522,20 +568,14 @@ export function Room({ roomId, onLeave }: RoomProps) {
         </div>
 
         {/* Dedicated Accessibility Panel on the right side of the video layout */}
-        {(user?.role === "normal" || user?.role === "deaf" || user?.role === "mute") && (
-          <div className="mr-accessibility-panel">
-            {(user?.role === "normal" || user?.role === "deaf") && (
-              <SignPanel activeSign={activeSign} />
-            )}
-            {user?.role === "mute" && (
-              <RecognitionPanel
-                result={recognitionResult}
-                isLoading={recognitionLoading}
-                loadError={recognitionError}
-              />
-            )}
-          </div>
-        )}
+        <div className="mr-accessibility-panel">
+          <SignPanel activeSign={activeSign} />
+          <RecognitionPanel
+            result={recognitionResult}
+            isLoading={recognitionLoading}
+            loadError={recognitionError}
+          />
+        </div>
 
         {/* Slide-out Google Meet-style participant panel */}
         <div className={`mr-sidebar-slide ${participantsOpen ? "open" : ""}`}>
