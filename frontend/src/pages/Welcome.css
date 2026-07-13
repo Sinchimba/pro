@@ -344,6 +344,7 @@
 
   .features-grid,
   .user-types-grid {
+    grid-template-columns: 1fr;
     gap: 24px;
   }
 

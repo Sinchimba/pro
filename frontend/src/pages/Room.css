@@ -1309,3 +1309,60 @@
     font-size: 13px !important;
   }
 }
+
+/* Sidebar Inline Styles for Translation and Sign Translation Panels */
+.mr-accessibility-panel .translation-panel-floating,
+.mr-accessibility-panel .sign-trans-panel-floating {
+  position: static !important;
+  margin: 0 !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 140px !important;
+  transform: none !important;
+  background: var(--mr-surface-raised) !important;
+  border: 1px solid var(--mr-border) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  flex-shrink: 0 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  display: flex !important;
+  flex-direction: column !important;
+  user-select: text !important;
+}
+
+.mr-accessibility-panel .drag-indicator,
+.mr-accessibility-panel .resize-handle {
+  display: none !important;
+}
+
+.mr-accessibility-panel .translation-panel-header,
+.mr-accessibility-panel .sign-trans-panel-header {
+  cursor: default !important;
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-bottom: 1px solid var(--mr-border) !important;
+  padding: 8px 12px !important;
+}
+
+.mr-accessibility-panel .translation-panel-body,
+.mr-accessibility-panel .sign-trans-panel-body {
+  padding: 10px 12px !important;
+  overflow-y: auto !important;
+  max-height: 100px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 60px !important;
+  width: 100% !important;
+}
+
+.mr-accessibility-panel .translation-text,
+.mr-accessibility-panel .sign-trans-text {
+  font-size: 13.5px !important;
+  color: var(--mr-text) !important;
+}
+
+.mr-accessibility-panel .sign-trans-text {
+  font-size: 18px !important;
+  color: #00f5d4 !important;
+}

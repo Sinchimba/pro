@@ -580,10 +580,16 @@ export function Room({ roomId, onLeave }: RoomProps) {
             </div>
           </div>
 
-          {/* Real-time floating non-intrusive language translator */}
-          <TranslationPanel transcript={throttledTranscript} />
+          {/* Floating reactions animations overlay */}
+          <ReactionOverlay roomId={roomId} />
+        </div>
 
-          {/* Floating Sign Language Translation Panel (Draggable & Resizable) */}
+        {/* Dedicated Accessibility Panel on the right side of the video layout */}
+        <div className="mr-accessibility-panel">
+          {/* Sign Language Reference Avatar */}
+          <SignPanel activeSign={activeSign} />
+
+          {/* Real-time Sign Language Translator (Camera to spoken words) */}
           <SignTranslationPanel
             stream={localStream}
             onTranslation={(word, confidence, mode) => {
@@ -616,13 +622,10 @@ export function Room({ roomId, onLeave }: RoomProps) {
             }}
           />
 
-          {/* Floating reactions animations overlay */}
-          <ReactionOverlay roomId={roomId} />
-        </div>
+          {/* Real-time speech Language Translator */}
+          <TranslationPanel transcript={throttledTranscript} />
 
-        {/* Dedicated Accessibility Panel on the right side of the video layout */}
-        <div className="mr-accessibility-panel">
-          <SignPanel activeSign={activeSign} />
+          {/* Real-time transcript log */}
           <RecognitionPanel
             result={recognitionResult}
             isLoading={recognitionLoading}
