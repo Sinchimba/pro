@@ -2,6 +2,7 @@ import { useState } from "react";
 import { login } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { AuthBrandPanel } from "../components/AuthBrandPanel";
+import { EyeIcon, EyeOffIcon } from "../components/icons";
 import "./AuthForm.css";
 
 interface LoginProps {
@@ -14,6 +15,7 @@ export function Login({ onSuccess, onSwitchToSignUp, onBack }: LoginProps) {
   const { setAuth } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -64,14 +66,24 @@ export function Login({ onSuccess, onSwitchToSignUp, onBack }: LoginProps) {
 
           <div className="field-group">
             <label className="field-label">Password</label>
-            <input
-              className="field-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Your password"
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            />
+            <div className="password-field-wrapper">
+              <input
+                className="field-input"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Your password"
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((show) => !show)}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+              </button>
+            </div>
           </div>
 
           <button

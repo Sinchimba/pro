@@ -51,3 +51,23 @@ export async function login(
   });
   return handleResponse<AuthResponse>(res);
 }
+
+export async function createMeeting(token: string): Promise<{ roomId: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/meetings/create`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<{ roomId: string }>(res);
+}
+
+export async function validateMeeting(roomId: string): Promise<{ valid: boolean; error?: string }> {
+  const res = await fetch(`${BACKEND_URL}/api/meetings/validate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ roomId }),
+  });
+  return handleResponse<{ valid: boolean; error?: string }>(res);
+}

@@ -169,3 +169,35 @@ Once you have your new `custom_gestures.task` model file:
    ```
 
 Now, whenever you perform your custom gestures in front of the camera, local MediaPipe will recognize them instantly in the browser and translate them into custom spoken language for everyone in the room!
+
+---
+
+## 5. Advanced Optimization Strategies for Latency and Accuracy
+
+To maximize the translation accuracy and minimize the latency of the sign language pipeline in real-time environments, we recommend implementing the following software and data pipeline optimizations:
+
+### 1. Keyframe Sub-sampling
+Instead of running MediaPipe inference on every single raw camera frame (which runs at 30-60 frames per second and causes CPU bottlenecking), implement a sub-sampling interval.
+* **Mechanism**: Feed only every 3rd or 4th video frame to the gesture recognizer (e.g., 8-10 inferences per second).
+* **Benefit**: Reduces CPU/GPU load by over 60%, leaving resources free for video rendering and peer connection stream encoding. This prevents dropped frames and interface lag while maintaining near-instant translation response.
+
+### 2. Motion Differencing & Skip-Inference
+To prevent continuous redundant inferences when the user is sitting still or not signing, analyze frame-to-frame pixel differences.
+* **Mechanism**: Compute a simple sum of absolute differences (SAD) or structural similarity index (SSIM) between successive downscaled frames. If the motion is below a threshold, skip the inference step entirely.
+* **Benefit**: Saves processing cycles and battery life on mobile devices, and avoids flickering/false positives from idle movement.
+
+### 3. Low-Pass Filter on Confidence Scores
+Raw predictions can experience quick fluctuations due to light changes or motion blur.
+* **Mechanism**: Use a rolling window of predictions (e.g., size of 5 frames) and take the majority vote, or apply an exponential decay smoothing filter to confidence scores:
+  $$S_{smoothed} = \alpha \cdot S_{current} + (1 - \alpha) \cdot S_{previous}$$ (where $\alpha \approx 0.4$).
+* **Benefit**: Prevents flickering translation text when the gesture confidence hovers around the detection threshold.
+
+### 4. Background Segmentation & Contrast Normalization
+Variable lighting and busy home backgrounds are the primary sources of classification errors in gesture models.
+* **Mechanism**: Leverage MediaPipe's Selfie Segmenter to isolate the user's hand and mask out background clutter, or apply contrast-limited adaptive histogram equalization (CLAHE) on the hand bounding boxes.
+* **Benefit**: Drastically improves recognition consistency across different environments (office, home, dark rooms).
+
+### 5. Multi-Hand Coordination & Temporal Models (LSTM/GRU)
+Simple single-frame gesture models are limited to static symbols. For full sign sentences that involve motion (e.g., ASL verbs):
+* **Mechanism**: Extract the hand/body landmarks from MediaPipe and pass the temporal sequence of landmarks (X, Y, Z coordinates over 15-30 frames) into a light LSTM or GRU network running locally via **TensorFlow.js**.
+* **Benefit**: Enables translation of motion-based signs and whole conversational phrases.

@@ -43,9 +43,9 @@ if (config.DATABASE_URL) {
     async query(sql, params = []) {
       // Translate PostgreSQL placeholders ($1, $2) to SQLite placeholders (?)
       const sqliteSql = sql.replace(/\$\d+/g, "?");
-      
+
       const isSelect = sql.trim().toUpperCase().startsWith("SELECT") || sql.toUpperCase().includes("RETURNING");
-      
+
       if (isSelect) {
         const stmt = sqliteDb.prepare(sqliteSql);
         const rows = stmt.all(...params);
@@ -84,6 +84,15 @@ const initDb = async () => {
           role VARCHAR(50) NOT NULL CHECK(role IN ('normal', 'deaf', 'mute')),
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS meetings (
+          id VARCHAR(255) PRIMARY KEY,
+          host_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          expires_at TIMESTAMP NOT NULL,
+          is_used BOOLEAN DEFAULT FALSE,
+          first_used_at TIMESTAMP
+        );
       `);
       console.log("[db] PostgreSQL connection and schema ready.");
     } else {
@@ -95,6 +104,15 @@ const initDb = async () => {
           password_hash TEXT NOT NULL,
           role TEXT NOT NULL CHECK(role IN ('normal', 'deaf', 'mute')),
           created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS meetings (
+          id TEXT PRIMARY KEY,
+          host_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+          expires_at TEXT NOT NULL,
+          is_used INTEGER DEFAULT 0,
+          first_used_at TEXT
         );
       `);
       console.log("[db] SQLite connection and schema ready.");

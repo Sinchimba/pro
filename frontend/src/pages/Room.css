@@ -1105,19 +1105,207 @@
   animation-duration: 1.5s;
 }
 
+  @media (max-width: 900px) {
+    .mr-sidebar-slide {
+      width: 260px;
+    }
+    .mr-chat-panel {
+      right: 12px;
+      width: 280px;
+    }
+    .mr-topbar {
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+    .mr-start-time {
+      display: none;
+    }
+  }
+
+.room-validation-loading-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1e293b, #0f172a);
+  color: #f1f5f9;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  gap: 16px;
+}
+.room-validation-loading-overlay .loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(94, 234, 212, 0.1);
+  border-left-color: #5eead4;
+  border-radius: 50%;
+  animation: spinner-spin 1s linear infinite;
+}
+@keyframes spinner-spin {
+  to { transform: rotate(360deg); }
+}
+.room-validation-loading-overlay h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+}
+.room-validation-loading-overlay p {
+  color: #94a3b8;
+  font-size: 14px;
+  margin: 0;
+}
+
+.room-validation-error-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #1e293b, #0f172a);
+  color: #f1f5f9;
+  font-family: 'Outfit', 'Inter', sans-serif;
+  padding: 20px;
+}
+.room-validation-error-overlay .error-card {
+  max-width: 420px;
+  width: 100%;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  border-radius: 20px;
+  padding: 40px 32px;
+  text-align: center;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+.room-validation-error-overlay .error-icon {
+  font-size: 48px;
+  margin-bottom: 20px;
+}
+.room-validation-error-overlay h2 {
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: #fca5a5;
+}
+.room-validation-error-overlay p {
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0 0 28px 0;
+}
+.room-validation-error-overlay .back-to-home-btn {
+  background: #5eead4;
+  color: #0f172a;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+.room-validation-error-overlay .back-to-home-btn:hover {
+  background: #2dd4bf;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(94, 234, 212, 0.2);
+}
+
 @media (max-width: 900px) {
-  .mr-sidebar-slide {
-    width: 260px;
+  .mr-body {
+    flex-direction: column;
+    overflow-y: auto;
   }
-  .mr-chat-panel {
-    right: 12px;
-    width: 280px;
+  .mr-accessibility-panel {
+    width: 100% !important;
+    border-left: none !important;
+    border-top: 1px solid var(--mr-border) !important;
+    flex-shrink: 0;
+    max-height: 380px;
   }
+  .mr-main {
+    flex: none !important;
+    height: 50vh;
+    min-height: 350px;
+  }
+  .mr-video-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto !important;
+  }
+}
+
+@media (max-width: 768px) {
   .mr-topbar {
-    padding: 10px 14px;
-    font-size: 13px;
+    height: auto !important;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px;
+    gap: 8px;
   }
-  .mr-start-time {
-    display: none;
+  .mr-header-left {
+    justify-content: center;
+    width: 100%;
+  }
+  .mr-header-center {
+    width: 100%;
+    justify-content: center;
+  }
+  .mr-header-right {
+    width: 100%;
+    justify-content: center;
+    gap: 12px;
+  }
+  .mr-link-copy {
+    width: 100%;
+    max-width: 280px;
+    text-align: center;
+    justify-content: center;
+  }
+  .mr-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    height: auto !important;
+    padding: 12px 16px !important;
+    gap: 10px;
+  }
+  .mr-toolbar-left {
+    order: 1;
+    flex: 1 1 auto;
+    width: auto;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+  .mr-toolbar-right {
+    order: 2;
+    flex: 0 0 auto;
+    width: auto;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .mr-toolbar-center {
+    order: 3;
+    width: 100%;
+    flex: 1 1 100%;
+    justify-content: center;
+    gap: 8px;
+    border-top: 1px solid var(--mr-border);
+    padding-top: 10px;
+  }
+  .mr-tool-btn {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .mr-tool-btn svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  .mr-tool-btn.end-call-btn {
+    padding: 0 16px !important;
+  }
+  .mr-copy-link-btn {
+    padding: 6px 12px !important;
+    font-size: 11px !important;
+  }
+  .mr-meeting-code {
+    font-size: 13px !important;
   }
 }

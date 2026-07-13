@@ -21,7 +21,7 @@ interface UserJoinedPayload {
  * - tracks who's the host, and everyone's display name
  * - supports toggling audio/video and switching to screen share
  */
-export function useWebRTC(roomId: string, displayName: string) {
+export function useWebRTC(roomId: string, displayName: string, enabled: boolean = true) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
   const [joined, setJoined] = useState(false);
@@ -37,6 +37,7 @@ export function useWebRTC(roomId: string, displayName: string) {
   const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
 
   useEffect(() => {
+    if (!enabled) return;
     let cancelled = false;
 
     async function start() {
@@ -232,7 +233,7 @@ export function useWebRTC(roomId: string, displayName: string) {
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, displayName]);
+  }, [roomId, displayName, enabled]);
 
   function toggleAudio() {
     const stream = localStreamRef.current;

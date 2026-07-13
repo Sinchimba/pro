@@ -6,6 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
 import translateRoutes from "./routes/translate.js";
+import meetingsRoutes from "./routes/meetings.js";
 import "./db/connection.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,6 +23,7 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use("/auth", authRoutes);
 app.use("/api", translateRoutes);
+app.use("/api/meetings", meetingsRoutes);
 
 // Simple health check — useful once this is deployed on Render,
 // so you can confirm the service is alive before debugging WebRTC.

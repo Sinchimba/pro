@@ -3,6 +3,7 @@ import { signup } from "../lib/api";
 import type { Role } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { AuthBrandPanel } from "../components/AuthBrandPanel";
+import { EyeIcon, EyeOffIcon } from "../components/icons";
 import "./AuthForm.css";
 
 interface SignUpProps {
@@ -22,6 +23,7 @@ export function SignUp({ onSuccess, onSwitchToLogin, onBack }: SignUpProps) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -83,14 +85,24 @@ export function SignUp({ onSuccess, onSwitchToLogin, onBack }: SignUpProps) {
 
           <div className="field-group">
             <label className="field-label">Password</label>
-            <input
-              className="field-input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-            />
+            <div className="password-field-wrapper">
+              <input
+                className="field-input"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword((show) => !show)}
+                title={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOffIcon size={20} /> : <EyeIcon size={20} />}
+              </button>
+            </div>
           </div>
 
           <div className="field-group">

@@ -37,6 +37,7 @@ import {
   MirrorIcon,
 } from "../components/VideoCall/Icons";
 import { buildRoomLink } from "../lib/roomId";
+import { validateMeeting } from "../lib/api";
 import "./Room.css";
 
 interface RoomProps {
@@ -59,6 +60,33 @@ export function Room({ roomId, onLeave }: RoomProps) {
   const { user } = useAuth();
   const myName = user?.name || "You";
 
+  const [isValidating, setIsValidating] = useState(true);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    async function checkRoom() {
+      try {
+        const res = await validateMeeting(roomId);
+        if (!active) return;
+        if (res.valid) {
+          setIsValidating(false);
+        } else {
+          setValidationError(res.error || "This meeting link is invalid or has expired.");
+          setIsValidating(false);
+        }
+      } catch (err: any) {
+        if (!active) return;
+        setValidationError(err.message || "Failed to validate the meeting link.");
+        setIsValidating(false);
+      }
+    }
+    checkRoom();
+    return () => {
+      active = false;
+    };
+  }, [roomId]);
+
   const {
     localStream,
     remoteStreams,
@@ -73,7 +101,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
     error,
     hostSocketId,
     isHost,
-  } = useWebRTC(roomId, myName);
+  } = useWebRTC(roomId, myName, !isValidating && !validationError);
 
   const activeSpeakerId = useActiveSpeaker(localStream, remoteStreams);
   const { messages, sendMessage, unreadCount, markAllRead } = useChat(
@@ -410,6 +438,31 @@ export function Room({ roomId, onLeave }: RoomProps) {
       ...prev,
       [id]: !prev[id],
     }));
+  }
+
+  if (isValidating) {
+    return (
+      <div className="room-validation-loading-overlay">
+        <div className="loading-spinner"></div>
+        <h2>Verifying Room...</h2>
+        <p>Checking link validity and host room access</p>
+      </div>
+    );
+  }
+
+  if (validationError) {
+    return (
+      <div className="room-validation-error-overlay">
+        <div className="error-card">
+          <div className="error-icon">🔒</div>
+          <h2>Access Denied</h2>
+          <p>{validationError}</p>
+          <button className="back-to-home-btn" onClick={onLeave}>
+            Return to Dashboard
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (error) {
@@ -862,6 +915,12 @@ function VideoElement({
       if (video.srcObject !== stream) {
         video.srcObject = stream;
       }
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn("[VideoElement] Autoplay prevented:", err);
+        });
+      }
     }
   }, [stream]);
 
@@ -871,6 +930,7 @@ function VideoElement({
       autoPlay
       playsInline
       muted={muted}
+      controls={false}
     />
   );
 }

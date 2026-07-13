@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { generateRoomId } from "../lib/roomId";
+import { createMeeting, validateMeeting } from "../lib/api";
 import {
   VideoIcon,
   LinkIcon,
@@ -28,26 +28,53 @@ function getGreeting(): string {
 }
 
 export function Dashboard({ onJoin }: DashboardProps) {
-  const { user, logout } = useAuth();
+  const { user, token, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [joinCode, setJoinCode] = useState("");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   if (!user) return null;
 
   const initial = user.name.charAt(0).toUpperCase();
 
-  function handleCreate() {
-    onJoin(generateRoomId());
+  async function handleCreate() {
+    if (!token) {
+      setErrorMsg("You must be logged in to create a meeting.");
+      return;
+    }
+    setErrorMsg(null);
+    setLoading(true);
+    try {
+      const res = await createMeeting(token);
+      onJoin(res.roomId);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to create a meeting. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  function handleJoin() {
+  async function handleJoin() {
     let trimmed = joinCode.trim();
-    if (trimmed) {
-      const match = trimmed.match(/\/room\/([^/]+)$/);
-      if (match) {
-        trimmed = match[1];
+    if (!trimmed) return;
+    const match = trimmed.match(/\/room\/([^/]+)$/);
+    if (match) {
+      trimmed = match[1];
+    }
+    setErrorMsg(null);
+    setLoading(true);
+    try {
+      const res = await validateMeeting(trimmed);
+      if (res.valid) {
+        onJoin(trimmed);
+      } else {
+        setErrorMsg(res.error || "This meeting link is invalid or has expired.");
       }
-      onJoin(trimmed);
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to validate the meeting. Please check the code.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -94,6 +121,14 @@ export function Dashboard({ onJoin }: DashboardProps) {
           </p>
         </div>
 
+        {errorMsg && (
+          <div className="dashboard-error-banner">
+            <span className="error-icon">⚠️</span>
+            <span className="error-text">{errorMsg}</span>
+            <button className="error-close-btn" onClick={() => setErrorMsg(null)}>×</button>
+          </div>
+        )}
+
         <div className="action-cards">
           <div className="action-card">
             <div className="action-card-icon">
@@ -104,8 +139,8 @@ export function Dashboard({ onJoin }: DashboardProps) {
               Generates a unique link instantly — share it with anyone,
               anywhere.
             </p>
-            <button className="action-card-primary-btn" onClick={handleCreate}>
-              New Meeting
+            <button className="action-card-primary-btn" onClick={handleCreate} disabled={loading}>
+              {loading ? "Creating..." : "New Meeting"}
             </button>
           </div>
 
@@ -120,10 +155,11 @@ export function Dashboard({ onJoin }: DashboardProps) {
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value)}
                 placeholder="e.g. swift-otter-4821"
-                onKeyDown={(e) => e.key === "Enter" && handleJoin()}
+                onKeyDown={(e) => e.key === "Enter" && !loading && handleJoin()}
+                disabled={loading}
               />
-              <button onClick={handleJoin} disabled={!joinCode.trim()}>
-                Join
+              <button onClick={handleJoin} disabled={!joinCode.trim() || loading}>
+                {loading ? "..." : "Join"}
               </button>
             </div>
           </div>
