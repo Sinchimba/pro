@@ -1,11 +1,16 @@
 import "./CaptionsOverlay.css";
 
+interface Caption {
+  speakerName: string;
+  text: string;
+}
+
 interface CaptionsOverlayProps {
-  transcript: string;
+  caption: Caption | null;
   isSupported: boolean;
 }
 
-export function CaptionsOverlay({ transcript, isSupported }: CaptionsOverlayProps) {
+export function CaptionsOverlay({ caption, isSupported }: CaptionsOverlayProps) {
   if (!isSupported) {
     return (
       <div className="captions-overlay unsupported">
@@ -14,15 +19,12 @@ export function CaptionsOverlay({ transcript, isSupported }: CaptionsOverlayProp
     );
   }
 
-  if (!transcript) return null;
+  if (!caption || !caption.text) return null;
 
   return (
     <div className="captions-overlay">
-      <div className="captions-label">
-        <span className="pulse-dot" />
-        Live captions
-      </div>
-      <div>{transcript}</div>
+      <span className="captions-speaker">{caption.speakerName}:</span>
+      <span className="captions-text">{caption.text}</span>
     </div>
   );
 }

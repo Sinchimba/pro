@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { GestureRecognizer, FilesetResolver } from "@mediapipe/tasks-vision";
+import { GestureRecognizer } from "@mediapipe/tasks-vision";
+import { getSharedGestureRecognizer } from "../lib/mediapipe";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:4000");
 
@@ -27,24 +28,13 @@ export function useSignLanguageTranslation(
   const prevImageDataRef = useRef<Uint8ClampedArray | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load MediaPipe locally (only when local mode is selected or for fallback)
+  // Load MediaPipe locally via shared singleton
   useEffect(() => {
     let cancelled = false;
 
     async function loadMediaPipe() {
       try {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-        );
-        const recognizer = await GestureRecognizer.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numHands: 1,
-        });
+        const recognizer = await getSharedGestureRecognizer();
         if (!cancelled) {
           recognizerRef.current = recognizer;
         }
@@ -57,8 +47,7 @@ export function useSignLanguageTranslation(
 
     return () => {
       cancelled = true;
-      recognizerRef.current?.close();
-      recognizerRef.current = null;
+      recognizerRef.current = null; // Do not call close() as it's a shared instance
     };
   }, []);
 

@@ -110,8 +110,32 @@ export function Room({ roomId, onLeave }: RoomProps) {
   );
   const { isHandRaised, othersRaised, toggleHand } = useRaiseHand(roomId);
 
+  interface ActiveCaption {
+    speakerName: string;
+    text: string;
+    timestamp: number;
+  }
+  const [activeCaption, setActiveCaption] = useState<ActiveCaption | null>(null);
+
   const { transcript, isSupported } = useSpeechRecognition(
-    joined && isAudioEnabled
+    joined && isAudioEnabled,
+    (completedSentence) => {
+      const text = completedSentence.trim();
+      if (text) {
+        setActiveCaption({
+          speakerName: "You",
+          text,
+          timestamp: Date.now(),
+        });
+        if (joined) {
+          socket.emit("speech-caption", {
+            roomId,
+            text,
+            speakerName: myName,
+          });
+        }
+      }
+    }
   );
 
   const [lastTranscriptAction, setLastTranscriptAction] = useState<TranscriptAction | null>(null);
@@ -158,6 +182,41 @@ export function Room({ roomId, onLeave }: RoomProps) {
       socket.off("speech-transcript", handleIncomingTranscript);
     };
   }, []);
+
+  // Listen to remote completed captions
+  useEffect(() => {
+    function handleIncomingCaption({
+      text,
+      speakerName,
+    }: {
+      socketId: string;
+      text: string;
+      speakerName: string;
+    }) {
+      if (text) {
+        setActiveCaption({
+          speakerName: speakerName || "Guest",
+          text: text.trim(),
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    socket.on("speech-caption", handleIncomingCaption);
+
+    return () => {
+      socket.off("speech-caption", handleIncomingCaption);
+    };
+  }, []);
+
+  // Auto-clear active caption after 4 seconds of silence
+  useEffect(() => {
+    if (!activeCaption) return;
+    const timeout = setTimeout(() => {
+      setActiveCaption(null);
+    }, 4000);
+    return () => clearTimeout(timeout);
+  }, [activeCaption]);
 
   const activeSign = useSignMatcher(lastTranscriptAction);
   const {
@@ -214,12 +273,13 @@ export function Room({ roomId, onLeave }: RoomProps) {
     function handleIncomingTranslation({
       socketId,
       word,
+      name,
     }: {
       socketId: string;
-      name: string;
+      name?: string;
       word: string;
-      confidence: number;
-      mode: string;
+      confidence?: number;
+      mode?: string;
     }) {
       // 1. Show the translation on the sender's video tile
       setActiveTranslations((prev) => ({
@@ -245,6 +305,13 @@ export function Room({ roomId, onLeave }: RoomProps) {
         const utterance = new SpeechSynthesisUtterance(word);
         window.speechSynthesis.speak(utterance);
       }
+
+      // 4. Update the live caption overlay with the translated gesture
+      setActiveCaption({
+        speakerName: name || "Guest",
+        text: `[Sign] ${word}`,
+        timestamp: Date.now(),
+      });
     }
 
     socket.on("sign-translation", handleIncomingTranslation);
@@ -262,11 +329,17 @@ export function Room({ roomId, onLeave }: RoomProps) {
         word: recognitionResult.text,
         confidence: 1.0,
         mode: "local",
+        name: myName,
       });
       setActiveTranslations((prev) => ({
         ...prev,
         local: { word: recognitionResult.text, timestamp: Date.now() },
       }));
+      setActiveCaption({
+        speakerName: "You",
+        text: `[Sign] ${recognitionResult.text}`,
+        timestamp: Date.now(),
+      });
       setTimeout(() => {
         setActiveTranslations((prev) => {
           const current = prev.local;
@@ -279,7 +352,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
         });
       }, 3000);
     }
-  }, [recognitionResult, joined, roomId]);
+  }, [recognitionResult, joined, roomId, myName]);
 
   // Local stream background processing canvas pipeline
   useEffect(() => {
@@ -580,6 +653,8 @@ export function Room({ roomId, onLeave }: RoomProps) {
             </div>
           </div>
 
+          <CaptionsOverlay caption={activeCaption} isSupported={isSupported} />
+
           {/* Floating reactions animations overlay */}
           <ReactionOverlay roomId={roomId} />
         </div>
@@ -600,12 +675,19 @@ export function Room({ roomId, onLeave }: RoomProps) {
                   word,
                   confidence,
                   mode,
+                  name: myName,
                 });
                 // Update local tile overlay
                 setActiveTranslations((prev) => ({
                   ...prev,
                   local: { word, timestamp: Date.now() },
                 }));
+                // Update the live caption overlay with the translated gesture
+                setActiveCaption({
+                  speakerName: "You",
+                  text: `[Sign] ${word}`,
+                  timestamp: Date.now(),
+                });
                 // Automatically clear local translation after 3 seconds
                 setTimeout(() => {
                   setActiveTranslations((prev) => {
@@ -838,8 +920,6 @@ export function Room({ roomId, onLeave }: RoomProps) {
           onClose={() => setBackgroundSettingsOpen(false)}
         />
       )}
-
-      <CaptionsOverlay transcript={throttledTranscript} isSupported={isSupported} />
     </div>
   );
 }

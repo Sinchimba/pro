@@ -1,6 +1,3 @@
-// Centralized environment variable reader.
-// In Node 20.6+, you can run the app with `node --env-file=.env src/server.js` 
-// to automatically load environment variables without external packages.
 
 export const config = {
   PORT: process.env.PORT || 4000,

@@ -35,10 +35,14 @@ declare global {
  * Note: requires a secure context (https:// or localhost), same as camera
  * access, and is currently best-supported in Chrome/Edge.
  */
-export function useSpeechRecognition(enabled: boolean) {
+export function useSpeechRecognition(
+  enabled: boolean,
+  onSentenceCompleted?: (sentence: string) => void
+) {
   const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const lastProcessedIndexRef = useRef<number>(-1);
 
   useEffect(() => {
     const SpeechRecognitionCtor =
@@ -51,6 +55,7 @@ export function useSpeechRecognition(enabled: boolean) {
 
     if (!enabled) {
       setTranscript("");
+      lastProcessedIndexRef.current = -1;
       return;
     }
 
@@ -60,6 +65,17 @@ export function useSpeechRecognition(enabled: boolean) {
     recognition.lang = "en-US";
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
+      // Detect newly finalized segments and trigger callback
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal && i > lastProcessedIndexRef.current) {
+          lastProcessedIndexRef.current = i;
+          const completedText = event.results[i][0].transcript.trim();
+          if (completedText && onSentenceCompleted) {
+            onSentenceCompleted(completedText);
+          }
+        }
+      }
+
       let combined = "";
       for (let i = 0; i < event.results.length; i++) {
         combined += event.results[i][0].transcript + " ";

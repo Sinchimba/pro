@@ -19,7 +19,7 @@ export interface SignEntry {
 export const SIGN_VOCABULARY: SignEntry[] = [
   { word: "hello", videoUrl: "/sign-clips/Hello.mp4" },
   { word: "thank you", videoUrl: "/sign-clips/thank-you.mp4" },
-  { word: "please", videoUrl: "/sign-clips/please.mp4" },
+  { word: "please", videoUrl: "/sign-clips/Please.mp4" },
   { word: "yes", videoUrl: "/sign-clips/yes.mp4" },
   { word: "no", videoUrl: "/sign-clips/no.mp4" },
   { word: "help", videoUrl: "/sign-clips/help.mp4" },
@@ -30,7 +30,7 @@ export const SIGN_VOCABULARY: SignEntry[] = [
   { word: "understand", videoUrl: "/sign-clips/understand.mp4" },
   { word: "my name", videoUrl: "/sign-clips/myname.mp4" },
   { word: "nice to meet with you", videoUrl: "/sign-clips/nice to meet with you.mp4" },
-  { word: "myname" , videoUrl: "/sign-clips/myname.mp4" },
+  { word: "me" , videoUrl: "/sign-clips/Me.mp4" },
 ];
 
 /**

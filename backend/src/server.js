@@ -182,6 +182,15 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Speech completed captions — relayed to everyone else in the room for subtitles.
+  socket.on("speech-caption", ({ roomId, text, speakerName }) => {
+    socket.to(roomId).emit("speech-caption", {
+      socketId: socket.id,
+      text,
+      speakerName,
+    });
+  });
+
   // Step 3: Cleanup when someone leaves or disconnects.
   socket.on("leave-room", () => {
     leaveCurrentRoom(socket);
