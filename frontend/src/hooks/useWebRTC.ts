@@ -56,6 +56,7 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;
+    let socketConnectHandler: (() => void) | null = null;
 
     async function start() {
       try {
@@ -77,15 +78,17 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
         cameraTrackRef.current = stream.getVideoTracks()[0] ?? null;
         setLocalStream(stream);
 
+        socketConnectHandler = () => {
+          setMySocketId(socket.id ?? null);
+          socket.emit("join-room", { roomId, displayName, userId });
+          setJoined(true);
+        };
+
         socket.connect();
         if (socket.connected) {
-          setMySocketId(socket.id ?? null);
-        } else {
-          socket.once("connect", () => setMySocketId(socket.id ?? null));
+          socketConnectHandler();
         }
-
-        socket.emit("join-room", { roomId, displayName, userId });
-        setJoined(true);
+        socket.on("connect", socketConnectHandler);
       } catch (err) {
         if (!cancelled) {
           console.error("[useWebRTC] failed to start:", err);
@@ -121,6 +124,16 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       initialVideoOff = false,
       initialAudioOff = false
     ): RTCPeerConnection {
+      const existingPc = peerConnections.current.get(remoteSocketId);
+      if (existingPc) {
+        try {
+          existingPc.close();
+        } catch (e) {
+          console.warn("[WebRTC] Error closing existing peer connection:", e);
+        }
+        peerConnections.current.delete(remoteSocketId);
+      }
+
       const pc = new RTCPeerConnection({ iceServers });
 
       localStreamRef.current?.getTracks().forEach((track) => {
@@ -128,18 +141,21 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       });
 
       pc.ontrack = (event) => {
-        const [stream] = event.streams;
+        console.log(`[WebRTC] Received remote track:`, event.track.kind, `from:`, remoteSocketId);
+        const remoteStream = event.streams[0] || new MediaStream([event.track]);
+        const newStream = new MediaStream(remoteStream.getTracks());
+
         setRemoteStreams((prev) => {
           const exists = prev.some((r) => r.socketId === remoteSocketId);
           if (exists) {
             return prev.map((r) =>
-              r.socketId === remoteSocketId ? { ...r, stream } : r
+              r.socketId === remoteSocketId ? { ...r, stream: newStream } : r
             );
           }
           return [...prev, { 
             socketId: remoteSocketId, 
             name, 
-            stream, 
+            stream: newStream, 
             videoOff: initialVideoOff, 
             audioOff: initialAudioOff 
           }];
@@ -286,6 +302,9 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
 
     return () => {
       cancelled = true;
+      if (socketConnectHandler) {
+        socket.off("connect", socketConnectHandler);
+      }
       socket.off("existing-users", handleExistingUsers);
       socket.off("user-joined", trackMeta);
       socket.off("user-joined", handleUserJoined);

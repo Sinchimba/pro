@@ -1039,17 +1039,36 @@ function VideoElement({
 
   useEffect(() => {
     const video = videoRef.current;
-    if (video) {
-      if (video.srcObject !== stream) {
-        video.srcObject = stream;
-      }
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("[VideoElement] Autoplay prevented:", err);
-        });
-      }
+    if (!video) return;
+
+    if (video.srcObject !== stream) {
+      video.srcObject = stream;
     }
+
+    let playOnInteraction: (() => void) | null = null;
+
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn("[VideoElement] Autoplay prevented:", err);
+        playOnInteraction = () => {
+          video.play()
+            .then(() => {
+              if (playOnInteraction) {
+                document.removeEventListener("click", playOnInteraction);
+              }
+            })
+            .catch(() => {});
+        };
+        document.addEventListener("click", playOnInteraction);
+      });
+    }
+
+    return () => {
+      if (playOnInteraction) {
+        document.removeEventListener("click", playOnInteraction);
+      }
+    };
   }, [stream]);
 
   return (
