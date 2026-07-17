@@ -7,7 +7,8 @@ import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
 import translateRoutes from "./routes/translate.js";
 import meetingsRoutes from "./routes/meetings.js";
-import "./db/connection.js";
+import { db } from "./db/connection.js";
+import { redis } from "./config/redis.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -56,18 +57,14 @@ const io = new Server(httpServer, {
 });
 
 // In-memory room tracking:
-// { roomId: { users: Map<socketId, displayName>, hostSocketId: string } }
-// The FIRST person to join a room becomes its host automatically.
-// This is fine for an MVP with a single server instance. If you later
-// scale to multiple backend instances, you'd need the Redis adapter for
-// Socket.io so rooms are shared across instances.
+// { roomId: { users: Map<socketId, { name: string, userId: number|null, videoOff: boolean, audioOff: boolean }>, hostSocketId: string } }
 const rooms = new Map();
 
 io.on("connection", (socket) => {
   console.log(`[connect] ${socket.id}`);
 
   // Step 1: A user wants to join a specific room (meeting code/link).
-  socket.on("join-room", ({ roomId, displayName }) => {
+  socket.on("join-room", ({ roomId, displayName, userId }) => {
     if (rooms.has(roomId)) {
       const room = rooms.get(roomId);
       if (room.users.size >= 5) {
@@ -87,14 +84,24 @@ io.on("connection", (socket) => {
     // host), so they know who to send WebRTC offers to and how to label
     // the participant list.
     const existingUsers = Array.from(room.users.entries()).map(
-      ([socketId, name]) => ({ socketId, name })
+      ([socketId, info]) => ({ 
+        socketId, 
+        name: info.name,
+        videoOff: info.videoOff,
+        audioOff: info.audioOff
+      })
     );
     socket.emit("existing-users", {
       users: existingUsers,
       hostSocketId: room.hostSocketId,
     });
 
-    room.users.set(socket.id, displayName || "Guest");
+    room.users.set(socket.id, {
+      name: displayName || "Guest",
+      userId: userId || null,
+      videoOff: false,
+      audioOff: false
+    });
     socket.data.roomId = roomId;
 
     // Tell EVERYONE ELSE in the room that a new user joined,
@@ -102,10 +109,12 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("user-joined", {
       socketId: socket.id,
       name: displayName || "Guest",
+      videoOff: false,
+      audioOff: false
     });
 
     console.log(
-      `[join-room] ${socket.id} (${displayName}) joined ${roomId}. Room size: ${room.users.size}`
+      `[join-room] ${socket.id} (${displayName}, userId: ${userId}) joined ${roomId}. Room size: ${room.users.size}`
     );
   });
 
@@ -130,6 +139,35 @@ io.on("connection", (socket) => {
     io.to(targetSocketId).emit("ice-candidate", {
       fromSocketId: socket.id,
       candidate,
+    });
+  });
+
+  // Media toggle states
+  socket.on("toggle-video", ({ roomId, enabled }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      const user = room.users.get(socket.id);
+      if (user) {
+        user.videoOff = !enabled;
+      }
+    }
+    socket.to(roomId).emit("user-video-toggle", {
+      socketId: socket.id,
+      enabled,
+    });
+  });
+
+  socket.on("toggle-audio", ({ roomId, enabled }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      const user = room.users.get(socket.id);
+      if (user) {
+        user.audioOff = !enabled;
+      }
+    }
+    socket.to(roomId).emit("user-audio-toggle", {
+      socketId: socket.id,
+      enabled,
     });
   });
 
@@ -163,7 +201,7 @@ io.on("connection", (socket) => {
   // Sign translations — relayed to everyone else in the room, not persisted.
   socket.on("sign-translation", ({ roomId, word, confidence, mode }) => {
     const room = rooms.get(roomId);
-    const displayName = room?.users.get(socket.id) || "Guest";
+    const displayName = room?.users.get(socket.id)?.name || "Guest";
     socket.to(roomId).emit("sign-translation", {
       socketId: socket.id,
       name: displayName,
@@ -174,9 +212,9 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Speech transcripts — relayed to everyone else in the room for visual avatar translation.
+  // Speech transcripts — relayed to everyone else in the room with ultra-low latency (volatile)
   socket.on("speech-transcript", ({ roomId, transcript }) => {
-    socket.to(roomId).emit("speech-transcript", {
+    socket.volatile.to(roomId).emit("speech-transcript", {
       socketId: socket.id,
       transcript,
     });
@@ -215,12 +253,29 @@ io.on("connection", (socket) => {
         const next = room.users.keys().next();
         room.hostSocketId = next.done ? null : next.value;
         if (room.hostSocketId) {
-          socket.to(roomId).emit("host-changed", room.hostSocketId);
+          io.to(roomId).emit("host-changed", room.hostSocketId);
+
+          // Update database meeting host if the new host is authenticated
+          const newHostUser = room.users.get(room.hostSocketId);
+          if (newHostUser && newHostUser.userId) {
+            db.query("UPDATE meetings SET host_id = $1 WHERE id = $2", [newHostUser.userId, roomId])
+              .then(() => console.log(`[db] Host migrated to user_id: ${newHostUser.userId} for room ${roomId}`))
+              .catch(err => console.error("[db] Host migration DB update failed:", err));
+          }
         }
       }
 
       if (room.users.size === 0) {
         rooms.delete(roomId);
+        // Expire Redis key immediately
+        redis.del(`meeting:${roomId}:status`)
+          .catch(err => console.error("[redis] Failed to delete expired key:", err));
+
+        // Mark meeting link as expired in database
+        const nowStr = new Date().toISOString();
+        db.query("UPDATE meetings SET expires_at = $1 WHERE id = $2", [nowStr, roomId])
+          .then(() => console.log(`[db/redis] Meeting link ${roomId} expired as all participants left.`))
+          .catch(err => console.error("[db] Expire room failed:", err));
       }
     }
 

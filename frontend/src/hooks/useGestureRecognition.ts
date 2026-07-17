@@ -30,6 +30,10 @@ export function useGestureRecognition(
   const rafRef = useRef<number | null>(null);
   const lastGestureRef = useRef<string | null>(null);
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Ref for tracking inference frequency and temporal history window
+  const lastCheckRef = useRef<number>(0);
+  const gestureHistoryRef = useRef<string[]>([]);
 
   // Load the model once via shared singleton.
   useEffect(() => {
@@ -85,20 +89,43 @@ export function useGestureRecognition(
       }
 
       const nowMs = performance.now();
-      const results = recognizer.recognizeForVideo(videoEl, nowMs);
+      // Throttle the MediaPipe recognition pipeline to 10 FPS (every 100ms) to drastically save CPU/battery
+      if (nowMs - lastCheckRef.current >= 100) {
+        lastCheckRef.current = nowMs;
+        const results = recognizer.recognizeForVideo(videoEl, nowMs);
 
-      const topGesture = results.gestures?.[0]?.[0];
-      if (topGesture && topGesture.score >= MIN_CONFIDENCE) {
-        const category = topGesture.categoryName;
-        if (category !== lastGestureRef.current) {
-          lastGestureRef.current = category;
-          const text = gestureLabelToText(category);
+        const topGesture = results.gestures?.[0]?.[0];
+        const detectedCategory = (topGesture && topGesture.score >= MIN_CONFIDENCE) ? topGesture.categoryName : "none";
+
+        // Smooth output: push current prediction to rolling temporal history (5 frames)
+        gestureHistoryRef.current.push(detectedCategory);
+        if (gestureHistoryRef.current.length > 5) {
+          gestureHistoryRef.current.shift();
+        }
+
+        // Apply majority voting over the window
+        const counts: Record<string, number> = {};
+        let maxCount = 0;
+        let majorityGesture = "none";
+        for (const g of gestureHistoryRef.current) {
+          counts[g] = (counts[g] || 0) + 1;
+          if (counts[g] > maxCount) {
+            maxCount = counts[g];
+            majorityGesture = g;
+          }
+        }
+
+        // If we get a stable new gesture that isn't idle/none
+        if (majorityGesture !== "none" && majorityGesture !== lastGestureRef.current) {
+          lastGestureRef.current = majorityGesture;
+          const text = gestureLabelToText(majorityGesture);
           if (text) {
-            setResult({ gesture: category, text });
+            setResult({ gesture: majorityGesture, text });
             if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
             clearTimerRef.current = setTimeout(() => {
               setResult(null);
               lastGestureRef.current = null;
+              gestureHistoryRef.current = [];
             }, HOLD_MS);
           }
         }

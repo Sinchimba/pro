@@ -3,6 +3,7 @@ import "./CaptionsOverlay.css";
 interface Caption {
   speakerName: string;
   text: string;
+  type?: "Spoken" | "Sign";
 }
 
 interface CaptionsOverlayProps {
@@ -21,9 +22,11 @@ export function CaptionsOverlay({ caption, isSupported }: CaptionsOverlayProps) 
 
   if (!caption || !caption.text) return null;
 
+  const typeLabel = ` [${caption.type || "Spoken"}]`;
+
   return (
     <div className="captions-overlay">
-      <span className="captions-speaker">{caption.speakerName}:</span>
+      <span className="captions-speaker">{caption.speakerName}{typeLabel}:</span>
       <span className="captions-text">{caption.text}</span>
     </div>
   );

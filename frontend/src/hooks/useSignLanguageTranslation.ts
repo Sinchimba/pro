@@ -27,6 +27,7 @@ export function useSignLanguageTranslation(
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevImageDataRef = useRef<Uint8ClampedArray | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gestureHistoryRef = useRef<string[]>([]);
 
   // Load MediaPipe locally via shared singleton
   useEffect(() => {
@@ -56,6 +57,7 @@ export function useSignLanguageTranslation(
     if (!enabled || !stream) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       prevImageDataRef.current = null;
+      gestureHistoryRef.current = [];
       return;
     }
 
@@ -125,22 +127,40 @@ export function useSignLanguageTranslation(
           const nowMs = performance.now();
           const results = recognizer.recognizeForVideo(video, nowMs);
           const topGesture = results.gestures?.[0]?.[0];
+          const detectedCategory = (topGesture && topGesture.score >= 0.6) ? topGesture.categoryName : "none";
 
-          if (topGesture && topGesture.score >= 0.6) {
-            const category = topGesture.categoryName;
+          // Rolling temporal history smoothing
+          gestureHistoryRef.current.push(detectedCategory);
+          if (gestureHistoryRef.current.length > 5) {
+            gestureHistoryRef.current.shift();
+          }
+
+          // Majority voting
+          const counts: Record<string, number> = {};
+          let maxCount = 0;
+          let majorityGesture = "none";
+          for (const g of gestureHistoryRef.current) {
+            counts[g] = (counts[g] || 0) + 1;
+            if (counts[g] > maxCount) {
+              maxCount = counts[g];
+              majorityGesture = g;
+            }
+          }
+
+          if (majorityGesture !== "none") {
             // Map simple gesture names to readable words
-            let mappedWord = category;
-            if (category === "Thumb_Up") mappedWord = "Yes";
-            if (category === "Thumb_Down") mappedWord = "No";
-            if (category === "Closed_Fist") mappedWord = "Wait";
-            if (category === "Open_Palm") mappedWord = "Stop";
-            if (category === "Pointing_Up") mappedWord = "Look";
-            if (category === "Victory") mappedWord = "Peace";
-            if (category === "ILoveYou") mappedWord = "I Love You";
+            let mappedWord = majorityGesture;
+            if (majorityGesture === "Thumb_Up") mappedWord = "Yes";
+            if (majorityGesture === "Thumb_Down") mappedWord = "No";
+            if (majorityGesture === "Closed_Fist") mappedWord = "Wait";
+            if (majorityGesture === "Open_Palm") mappedWord = "Stop";
+            if (majorityGesture === "Pointing_Up") mappedWord = "Look";
+            if (majorityGesture === "Victory") mappedWord = "Peace";
+            if (majorityGesture === "ILoveYou") mappedWord = "I Love You";
 
             handleNewTranslation({
               word: mappedWord,
-              confidence: topGesture.score,
+              confidence: 0.8,
               mode: "local",
             });
           }

@@ -101,7 +101,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
     error,
     hostSocketId,
     isHost,
-  } = useWebRTC(roomId, myName, !isValidating && !validationError);
+  } = useWebRTC(roomId, myName, !isValidating && !validationError, user?.id);
 
   const activeSpeakerId = useActiveSpeaker(localStream, remoteStreams);
   const { messages, sendMessage, unreadCount, markAllRead } = useChat(
@@ -113,6 +113,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
   interface ActiveCaption {
     speakerName: string;
     text: string;
+    type: "Spoken" | "Sign";
     timestamp: number;
   }
   const [activeCaption, setActiveCaption] = useState<ActiveCaption | null>(null);
@@ -125,6 +126,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
         setActiveCaption({
           speakerName: "You",
           text,
+          type: "Spoken",
           timestamp: Date.now(),
         });
         if (joined) {
@@ -197,6 +199,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
         setActiveCaption({
           speakerName: speakerName || "Guest",
           text: text.trim(),
+          type: "Spoken",
           timestamp: Date.now(),
         });
       }
@@ -209,12 +212,12 @@ export function Room({ roomId, onLeave }: RoomProps) {
     };
   }, []);
 
-  // Auto-clear active caption after 4 seconds of silence
+  // Auto-clear active caption after 5 seconds of silence
   useEffect(() => {
     if (!activeCaption) return;
     const timeout = setTimeout(() => {
       setActiveCaption(null);
-    }, 4000);
+    }, 5000);
     return () => clearTimeout(timeout);
   }, [activeCaption]);
 
@@ -309,7 +312,8 @@ export function Room({ roomId, onLeave }: RoomProps) {
       // 4. Update the live caption overlay with the translated gesture
       setActiveCaption({
         speakerName: name || "Guest",
-        text: `[Sign] ${word}`,
+        text: word,
+        type: "Sign",
         timestamp: Date.now(),
       });
     }
@@ -337,7 +341,8 @@ export function Room({ roomId, onLeave }: RoomProps) {
       }));
       setActiveCaption({
         speakerName: "You",
-        text: `[Sign] ${recognitionResult.text}`,
+        text: recognitionResult.text,
+        type: "Sign",
         timestamp: Date.now(),
       });
       setTimeout(() => {
@@ -564,7 +569,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
       id: r.socketId,
       name: r.name,
       stream: r.stream,
-      videoOff: false,
+      videoOff: !!r.videoOff,
       isHost: r.socketId === hostSocketId,
       handRaised: othersRaised.has(r.socketId),
     })),
@@ -637,20 +642,59 @@ export function Room({ roomId, onLeave }: RoomProps) {
         <div className="mr-main">
           {/* Main Video Display Area with dynamic layout classes */}
           <div className={`mr-video-container layout-${layout}`}>
-            <div
-              className={`mr-video-grid ${hasActiveSpeaker ? "has-active-speaker" : ""}`}
-            >
-              {renderedTiles.map((tile) => (
-                <VideoTileCard
-                  key={tile.id}
-                  tile={tile}
-                  isSpeaker={activeSpeakerId === tile.id}
-                  isMirrored={!!mirroredTiles[tile.id]}
-                  onToggleMirror={() => toggleMirror(tile.id)}
-                  activeTranslation={activeTranslations[tile.id === "local" ? "local" : tile.id]?.word}
-                />
-              ))}
-            </div>
+            {layout === "sidebar" ? (
+              <div className="mr-video-sidebar-layout">
+                {/* Spotlight/Main Tile */}
+                <div className="mr-video-sidebar-main">
+                  {(() => {
+                    const mainTile = tiles.find((t) => t.id === activeSpeakerId) || tiles.find((t) => t.id === "local") || tiles[0];
+                    return mainTile ? (
+                      <VideoTileCard
+                        key={mainTile.id}
+                        tile={mainTile}
+                        isSpeaker={activeSpeakerId === mainTile.id}
+                        isMirrored={!!mirroredTiles[mainTile.id]}
+                        onToggleMirror={() => toggleMirror(mainTile.id)}
+                        activeTranslation={activeTranslations[mainTile.id === "local" ? "local" : mainTile.id]?.word}
+                      />
+                    ) : null;
+                  })()}
+                </div>
+                {/* Sidebar Tiles */}
+                <div className="mr-video-sidebar-strip">
+                  {tiles
+                    .filter((t) => {
+                      const mainTile = tiles.find((t) => t.id === activeSpeakerId) || tiles.find((t) => t.id === "local") || tiles[0];
+                      return t.id !== mainTile?.id;
+                    })
+                    .map((tile) => (
+                      <VideoTileCard
+                        key={tile.id}
+                        tile={tile}
+                        isSpeaker={activeSpeakerId === tile.id}
+                        isMirrored={!!mirroredTiles[tile.id]}
+                        onToggleMirror={() => toggleMirror(tile.id)}
+                        activeTranslation={activeTranslations[tile.id === "local" ? "local" : tile.id]?.word}
+                      />
+                    ))}
+                </div>
+              </div>
+            ) : (
+              <div
+                className={`mr-video-grid ${hasActiveSpeaker ? "has-active-speaker" : ""}`}
+              >
+                {renderedTiles.map((tile) => (
+                  <VideoTileCard
+                    key={tile.id}
+                    tile={tile}
+                    isSpeaker={activeSpeakerId === tile.id}
+                    isMirrored={!!mirroredTiles[tile.id]}
+                    onToggleMirror={() => toggleMirror(tile.id)}
+                    activeTranslation={activeTranslations[tile.id === "local" ? "local" : tile.id]?.word}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           <CaptionsOverlay caption={activeCaption} isSupported={isSupported} />
@@ -685,7 +729,8 @@ export function Room({ roomId, onLeave }: RoomProps) {
                 // Update the live caption overlay with the translated gesture
                 setActiveCaption({
                   speakerName: "You",
-                  text: `[Sign] ${word}`,
+                  text: word,
+                  type: "Sign",
                   timestamp: Date.now(),
                 });
                 // Automatically clear local translation after 3 seconds
