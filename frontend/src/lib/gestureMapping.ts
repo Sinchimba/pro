@@ -5,8 +5,13 @@ export const GESTURE_TO_TEXT: Record<string, string> = {
   Open_Palm: "hello",
   Closed_Fist: "wait",
   Victory: "peace",
-  Pointing_Up: "attention, please",
+  Pointing_Up: "attention please",
   ILoveYou: "I love you",
+  One: "one",
+  Two: "two",
+  Three: "three",
+  Four: "four",
+  Five: "five",
 };
 
 export function gestureLabelToText(category: string): string | null {

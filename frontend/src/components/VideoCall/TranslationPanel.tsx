@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
 import type { MouseEvent } from "react";
 import "./TranslationPanel.css";
 
@@ -6,23 +6,7 @@ interface TranslationPanelProps {
   transcript: string;
 }
 
-const LANGUAGES = [
-  { code: "es", name: "Spanish" },
-  { code: "fr", name: "French" },
-  { code: "de", name: "German" },
-  { code: "zh-CN", name: "Chinese (Simplified)" },
-  { code: "ar", name: "Arabic" },
-  { code: "ja", name: "Japanese" },
-  { code: "hi", name: "Hindi" },
-  { code: "pt", name: "Portuguese" },
-  { code: "ru", name: "Russian" },
-  { code: "sw", name: "Swahili" },
-];
-
 export function TranslationPanel({ transcript }: TranslationPanelProps) {
-  const [targetLang, setTargetLang] = useState("es");
-  const [translatedText, setTranslatedText] = useState("");
-  const [loading, setLoading] = useState(false);
 
   // Position state (starts floating near bottom center)
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -31,35 +15,6 @@ export function TranslationPanel({ transcript }: TranslationPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const sizeStartRef = useRef<{ w: number; h: number; x: number; y: number } | null>(null);
-
-  // Debounce API calls to avoid spamming the free Google Translate API
-  useEffect(() => {
-    if (!transcript.trim()) {
-      setTranslatedText("");
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setLoading(true);
-        const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${targetLang}&dt=t&q=${encodeURIComponent(transcript)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Translation API failed");
-        
-        const data = await response.json();
-        if (data && data[0]) {
-          const result = data[0].map((item: any) => item[0]).join("");
-          setTranslatedText(result);
-        }
-      } catch (error) {
-        console.error("Translation error:", error);
-      } finally {
-        setLoading(false);
-      }
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [transcript, targetLang]);
 
   // Handle Dragging
   function handleMouseDown(e: MouseEvent) {
@@ -132,31 +87,17 @@ export function TranslationPanel({ transcript }: TranslationPanelProps) {
     >
       <div className="translation-panel-header">
         <span className="drag-indicator">⋮⋮</span>
-        <span className="panel-title">Real-time Translation</span>
-        
-        <select
-          value={targetLang}
-          onChange={(e) => setTargetLang(e.target.value)}
-          className="translation-dropdown"
-          onMouseDown={(e) => e.stopPropagation()} // Prevent dragging when clicking dropdown
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.name}
-            </option>
-          ))}
-        </select>
+        <span className="panel-title">Live Transcript</span>
       </div>
 
       <div className="translation-panel-body">
-        {loading && <span className="translation-loading-indicator">Translating...</span>}
         {!transcript.trim() && (
           <span className="translation-placeholder">
-            Speak to see live translation here...
+            Speak to see live captions here...
           </span>
         )}
-        {translatedText && (
-          <p className="translation-text">{translatedText}</p>
+        {transcript.trim() && (
+          <p className="translation-text">{transcript.trim()}</p>
         )}
       </div>
 

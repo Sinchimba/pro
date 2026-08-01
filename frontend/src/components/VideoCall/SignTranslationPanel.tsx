@@ -11,15 +11,13 @@ interface SignTranslationPanelProps {
 
 export function SignTranslationPanel({ stream, onTranslation }: SignTranslationPanelProps) {
   const [enabled, setEnabled] = useState(false);
-  const [mode, setMode] = useState<"local" | "cloud">("cloud");
-  const [language, setLanguage] = useState<"ASL" | "BSL" | "ISL">("ASL");
 
-  // Call our custom frame capture and translation hook
+  // Local MediaPipe-only sign recognition for demonstration stability.
   const { result, isLoading, loadError } = useSignLanguageTranslation(
     stream,
     enabled,
-    mode,
-    language
+    "local",
+    "ASL"
   );
 
   // Propagate translation results to listeners
@@ -125,26 +123,6 @@ export function SignTranslationPanel({ stream, onTranslation }: SignTranslationP
       </div>
 
       <div className="sign-trans-panel-controls">
-        <select
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as any)}
-          disabled={!enabled}
-          className="sign-trans-dropdown"
-        >
-          <option value="ASL">ASL (American)</option>
-          <option value="BSL">BSL (British)</option>
-          <option value="ISL">ISL (Indian)</option>
-        </select>
-
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value as any)}
-          disabled={!enabled}
-          className="sign-trans-dropdown"
-        >
-          <option value="cloud">Cloud (Gemini API)</option>
-          <option value="local">Local (MediaPipe)</option>
-        </select>
       </div>
 
       <div className="sign-trans-panel-body">
@@ -166,9 +144,7 @@ export function SignTranslationPanel({ stream, onTranslation }: SignTranslationP
           <div className="sign-trans-output-wrapper">
             <p className="sign-trans-text">{result.word}</p>
             <div className="sign-trans-meta">
-              <span className="sign-trans-badge">
-                {result.mode === "cloud" ? "Gemini 1.5" : result.mode === "local" ? "MediaPipe" : "Simulated"}
-              </span>
+              <span className="sign-trans-badge">MediaPipe</span>
               {result.confidence > 0 && (
                 <span className="sign-trans-confidence">
                   {Math.round(result.confidence * 100)}% Match

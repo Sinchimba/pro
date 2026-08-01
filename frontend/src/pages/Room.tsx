@@ -6,15 +6,14 @@ import { useActiveSpeaker } from "../hooks/useActiveSpeaker";
 import { useChat } from "../hooks/useChat";
 import { useRaiseHand } from "../hooks/useRaiseHand";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
-import { useSignMatcher, type TranscriptAction } from "../hooks/useSignMatcher";
 import { useGestureRecognition } from "../hooks/useGestureRecognition";
 import { CaptionsOverlay } from "../components/Captions/CaptionsOverlay";
 import { SignPanel } from "../components/SignPanel/SignPanel";
 import { RecognitionPanel } from "../components/SignPanel/RecognitionPanel";
 import { ChatPanel } from "../components/VideoCall/ChatPanel";
 import { ReactionOverlay } from "../components/VideoCall/ReactionOverlay";
-import { TranslationPanel } from "../components/VideoCall/TranslationPanel";
 import { SignTranslationPanel } from "../components/VideoCall/SignTranslationPanel";
+import { matchSignWord, type SignEntry } from "../lib/signVocabulary";
 import { BackgroundSettings } from "../components/VideoCall/BackgroundSettings";
 import type { BackgroundEffect } from "../components/VideoCall/BackgroundSettings";
 import {
@@ -118,72 +117,39 @@ export function Room({ roomId, onLeave }: RoomProps) {
   }
   const [activeCaption, setActiveCaption] = useState<ActiveCaption | null>(null);
 
-  const { transcript, isSupported } = useSpeechRecognition(
+  const { isSupported } = useSpeechRecognition(
     joined && isAudioEnabled,
     (completedSentence) => {
       const text = completedSentence.trim();
-      if (text) {
-        setActiveCaption({
-          speakerName: "You",
+      if (!text) return;
+
+      setActiveCaption({
+        speakerName: "You",
+        text,
+        type: "Spoken",
+        timestamp: Date.now(),
+      });
+
+      if (joined) {
+        socket.emit("speech-caption", {
+          roomId,
           text,
-          type: "Spoken",
-          timestamp: Date.now(),
+          speakerName: myName,
         });
-        if (joined) {
-          socket.emit("speech-caption", {
+
+        const nextSign = matchSignWord(text);
+        if (nextSign) {
+          setActiveSign(nextSign);
+          socket.emit("speech-sign", {
             roomId,
-            text,
+            word: nextSign.word,
+            videoUrl: nextSign.videoUrl,
             speakerName: myName,
           });
         }
       }
     }
   );
-
-  const [lastTranscriptAction, setLastTranscriptAction] = useState<TranscriptAction | null>(null);
-
-  // Update last active transcript action when local user speaks
-  useEffect(() => {
-    if (transcript) {
-      setLastTranscriptAction({
-        text: transcript,
-        timestamp: Date.now(),
-        senderId: "local",
-      });
-    }
-  }, [transcript]);
-
-  // Share our local transcript with remote members
-  useEffect(() => {
-    if (joined && transcript) {
-      socket.emit("speech-transcript", { roomId, transcript });
-    }
-  }, [transcript, joined, roomId]);
-
-  // Listen to remote transcripts
-  useEffect(() => {
-    function handleIncomingTranscript({
-      socketId,
-      transcript: text,
-    }: {
-      socketId: string;
-      transcript: string;
-    }) {
-      if (text) {
-        setLastTranscriptAction({
-          text,
-          timestamp: Date.now(),
-          senderId: socketId,
-        });
-      }
-    }
-
-    socket.on("speech-transcript", handleIncomingTranscript);
-
-    return () => {
-      socket.off("speech-transcript", handleIncomingTranscript);
-    };
-  }, []);
 
   // Listen to remote completed captions
   useEffect(() => {
@@ -221,7 +187,15 @@ export function Room({ roomId, onLeave }: RoomProps) {
     return () => clearTimeout(timeout);
   }, [activeCaption]);
 
-  const activeSign = useSignMatcher(lastTranscriptAction);
+  const [activeSign, setActiveSign] = useState<SignEntry | null>(null);
+  const signClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (signClearTimeoutRef.current) clearTimeout(signClearTimeoutRef.current);
+    };
+  }, []);
+
   const {
     result: recognitionResult,
     isLoading: recognitionLoading,
@@ -254,73 +228,48 @@ export function Room({ roomId, onLeave }: RoomProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
 
-  // Throttled live captions state using requestAnimationFrame
-  const [throttledTranscript, setThrottledTranscript] = useState("");
-  const rAFRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
-    rAFRef.current = requestAnimationFrame(() => {
-      setThrottledTranscript(transcript);
-    });
-    return () => {
-      if (rAFRef.current) cancelAnimationFrame(rAFRef.current);
-    };
-  }, [transcript]);
-
   // Track active sign translations for each user tile
   const [activeTranslations, setActiveTranslations] = useState<Record<string, { word: string; timestamp: number }>>({});
 
-  // Socket listener for incoming sign translations
+  // Room-wide speech-to-sign playback so every participant sees the same sign animation.
   useEffect(() => {
-    function handleIncomingTranslation({
+    function handleIncomingSpeechSign({
       socketId,
       word,
-      name,
+      videoUrl,
+      speakerName,
     }: {
       socketId: string;
-      name?: string;
       word: string;
-      confidence?: number;
-      mode?: string;
+      videoUrl: string;
+      speakerName?: string;
     }) {
-      // 1. Show the translation on the sender's video tile
-      setActiveTranslations((prev) => ({
-        ...prev,
-        [socketId]: { word, timestamp: Date.now() },
-      }));
+      if (!word || !videoUrl) return;
 
-      // 2. Clear translation badge after 3 seconds of inactivity
-      setTimeout(() => {
-        setActiveTranslations((prev) => {
-          const current = prev[socketId];
-          if (current && Date.now() - current.timestamp >= 3000) {
-            const next = { ...prev };
-            delete next[socketId];
-            return next;
-          }
-          return prev;
-        });
-      }, 3000);
+      if (signClearTimeoutRef.current) clearTimeout(signClearTimeoutRef.current);
 
-      // 3. Play Text-to-Speech (TTS) for other users' sign translations
-      if (socketId !== socket.id) {
-        const utterance = new SpeechSynthesisUtterance(word);
-        window.speechSynthesis.speak(utterance);
-      }
-
-      // 4. Update the live caption overlay with the translated gesture
+      setActiveSign({ word, videoUrl });
       setActiveCaption({
-        speakerName: name || "Guest",
+        speakerName: speakerName || "Guest",
         text: word,
         type: "Sign",
         timestamp: Date.now(),
       });
+
+      signClearTimeoutRef.current = setTimeout(() => {
+        setActiveSign(null);
+      }, 3000);
+
+      if (socketId !== socket.id) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
     }
 
-    socket.on("sign-translation", handleIncomingTranslation);
+    socket.on("speech-sign", handleIncomingSpeechSign);
     return () => {
-      socket.off("sign-translation", handleIncomingTranslation);
+      socket.off("speech-sign", handleIncomingSpeechSign);
       window.speechSynthesis.cancel();
     };
   }, []);
@@ -748,9 +697,6 @@ export function Room({ roomId, onLeave }: RoomProps) {
               }
             }}
           />
-
-          {/* Real-time speech Language Translator */}
-          <TranslationPanel transcript={throttledTranscript} />
 
           {/* Real-time transcript log */}
           <RecognitionPanel

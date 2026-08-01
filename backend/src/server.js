@@ -5,7 +5,6 @@ import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
-import translateRoutes from "./routes/translate.js";
 import meetingsRoutes from "./routes/meetings.js";
 import { db } from "./db/connection.js";
 import { redis } from "./config/redis.js";
@@ -23,7 +22,6 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use("/auth", authRoutes);
-app.use("/api", translateRoutes);
 app.use("/api/meetings", meetingsRoutes);
 
 // Simple health check — useful once this is deployed on Render,
@@ -225,6 +223,16 @@ io.on("connection", (socket) => {
     socket.to(roomId).emit("speech-caption", {
       socketId: socket.id,
       text,
+      speakerName,
+    });
+  });
+
+  // Speech-to-sign room broadcast for the shared sign animation panel.
+  socket.on("speech-sign", ({ roomId, word, videoUrl, speakerName }) => {
+    socket.to(roomId).emit("speech-sign", {
+      socketId: socket.id,
+      word,
+      videoUrl,
       speakerName,
     });
   });
