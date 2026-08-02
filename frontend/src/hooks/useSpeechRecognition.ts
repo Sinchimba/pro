@@ -37,7 +37,8 @@ declare global {
  */
 export function useSpeechRecognition(
   enabled: boolean,
-  onSentenceCompleted?: (sentence: string) => void
+  onSentenceCompleted?: (sentence: string) => void,
+  onInterimSpeech?: (interim: string) => void
 ) {
   const [transcript, setTranscript] = useState("");
   const [isSupported, setIsSupported] = useState(true);
@@ -80,7 +81,11 @@ export function useSpeechRecognition(
       for (let i = 0; i < event.results.length; i++) {
         combined += event.results[i][0].transcript + " ";
       }
-      setTranscript(combined.trim());
+      const trimmed = combined.trim();
+      setTranscript(trimmed);
+      if (trimmed && onInterimSpeech) {
+        onInterimSpeech(trimmed);
+      }
     };
 
     recognition.onerror = (event: Event) => {

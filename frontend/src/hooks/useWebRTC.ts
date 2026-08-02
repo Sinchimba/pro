@@ -36,6 +36,7 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
 
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const iceCandidatesQueue = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const pendingMeta = useRef<Map<string, { name: string; videoOff: boolean; audioOff: boolean }>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
   const cameraTrackRef = useRef<MediaStreamTrack | null>(null);
 
@@ -142,23 +143,33 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
 
       pc.ontrack = (event) => {
         console.log(`[WebRTC] Received remote track:`, event.track.kind, `from:`, remoteSocketId);
-        const remoteStream = event.streams[0] || new MediaStream([event.track]);
-        const newStream = new MediaStream(remoteStream.getTracks());
-
+        
         setRemoteStreams((prev) => {
-          const exists = prev.some((r) => r.socketId === remoteSocketId);
-          if (exists) {
-            return prev.map((r) =>
-              r.socketId === remoteSocketId ? { ...r, stream: newStream } : r
-            );
+          const existingIndex = prev.findIndex((r) => r.socketId === remoteSocketId);
+          if (existingIndex !== -1) {
+            const existingStream = prev[existingIndex].stream;
+            if (!existingStream.getTracks().some((t) => t.id === event.track.id)) {
+              existingStream.addTrack(event.track);
+            }
+            const updatedStream = new MediaStream(existingStream.getTracks());
+            const updated = [...prev];
+            updated[existingIndex] = { ...updated[existingIndex], stream: updatedStream };
+            return updated;
+          } else {
+            const streamToUse = event.streams[0]
+              ? new MediaStream(event.streams[0].getTracks())
+              : new MediaStream([event.track]);
+            return [
+              ...prev,
+              {
+                socketId: remoteSocketId,
+                name,
+                stream: streamToUse,
+                videoOff: initialVideoOff,
+                audioOff: initialAudioOff,
+              },
+            ];
           }
-          return [...prev, { 
-            socketId: remoteSocketId, 
-            name, 
-            stream: newStream, 
-            videoOff: initialVideoOff, 
-            audioOff: initialAudioOff 
-          }];
         });
       };
 
@@ -168,6 +179,18 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
             targetSocketId: remoteSocketId,
             candidate: event.candidate,
           });
+        }
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log(`[WebRTC] ICE state with ${remoteSocketId}: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState === "failed") {
+          console.warn(`[WebRTC] ICE connection failed for ${remoteSocketId}, attempting restart...`);
+          try {
+            pc.restartIce();
+          } catch (e) {
+            console.error("[WebRTC] restartIce failed:", e);
+          }
         }
       };
 
@@ -254,6 +277,7 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
         peerConnections.current.delete(remoteSocketId);
       }
       iceCandidatesQueue.current.delete(remoteSocketId);
+      pendingMeta.current.delete(remoteSocketId);
       setRemoteStreams((prev) =>
         prev.filter((r) => r.socketId !== remoteSocketId)
       );
@@ -263,8 +287,6 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       setHostSocketId(newHostId);
     }
 
-    // Track pending names and initial status for handleOffer
-    const pendingMeta = { current: new Map<string, { name: string; videoOff: boolean; audioOff: boolean }>() };
     function trackMeta({ socketId, name, videoOff, audioOff }: UserJoinedPayload) {
       pendingMeta.current.set(socketId, { name, videoOff, audioOff });
     }

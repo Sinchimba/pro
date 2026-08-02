@@ -148,11 +148,47 @@ export function Room({ roomId, onLeave }: RoomProps) {
           });
         }
       }
+    },
+    (interimText) => {
+      const text = interimText.trim();
+      if (!text) return;
+      setActiveCaption({
+        speakerName: "You",
+        text,
+        type: "Spoken",
+        timestamp: Date.now(),
+      });
+
+      if (joined) {
+        socket.emit("speech-transcript", {
+          roomId,
+          transcript: text,
+          speakerName: myName,
+        });
+      }
     }
   );
 
-  // Listen to remote completed captions
+  // Listen to remote speech transcripts & completed captions
   useEffect(() => {
+    function handleIncomingTranscript({
+      transcript,
+      speakerName,
+    }: {
+      socketId: string;
+      transcript: string;
+      speakerName: string;
+    }) {
+      if (transcript) {
+        setActiveCaption({
+          speakerName: speakerName || "Guest",
+          text: transcript.trim(),
+          type: "Spoken",
+          timestamp: Date.now(),
+        });
+      }
+    }
+
     function handleIncomingCaption({
       text,
       speakerName,
@@ -171,10 +207,62 @@ export function Room({ roomId, onLeave }: RoomProps) {
       }
     }
 
+    socket.on("speech-transcript", handleIncomingTranscript);
     socket.on("speech-caption", handleIncomingCaption);
 
     return () => {
+      socket.off("speech-transcript", handleIncomingTranscript);
       socket.off("speech-caption", handleIncomingCaption);
+    };
+  }, []);
+
+  // Listen to remote sign translations (Deaf participant signing)
+  useEffect(() => {
+    function handleIncomingSignTranslation({
+      socketId,
+      name,
+      word,
+    }: {
+      socketId: string;
+      name: string;
+      word: string;
+    }) {
+      if (!word) return;
+
+      setActiveCaption({
+        speakerName: name || "Guest",
+        text: word,
+        type: "Sign",
+        timestamp: Date.now(),
+      });
+
+      setActiveTranslations((prev) => ({
+        ...prev,
+        [socketId]: { word, timestamp: Date.now() },
+      }));
+
+      if (socketId !== socket.id) {
+        const utterance = new SpeechSynthesisUtterance(word);
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(utterance);
+      }
+
+      setTimeout(() => {
+        setActiveTranslations((prev) => {
+          const current = prev[socketId];
+          if (current && Date.now() - current.timestamp >= 3000) {
+            const next = { ...prev };
+            delete next[socketId];
+            return next;
+          }
+          return prev;
+        });
+      }, 3000);
+    }
+
+    socket.on("sign-translation", handleIncomingSignTranslation);
+    return () => {
+      socket.off("sign-translation", handleIncomingSignTranslation);
     };
   }, []);
 
@@ -991,6 +1079,12 @@ function VideoElement({
       video.srcObject = stream;
     }
 
+    const handleTrackAdded = () => {
+      video.play().catch(() => {});
+    };
+
+    stream.addEventListener("addtrack", handleTrackAdded);
+
     let playOnInteraction: (() => void) | null = null;
 
     const playPromise = video.play();
@@ -1011,6 +1105,7 @@ function VideoElement({
     }
 
     return () => {
+      stream.removeEventListener("addtrack", handleTrackAdded);
       if (playOnInteraction) {
         document.removeEventListener("click", playOnInteraction);
       }

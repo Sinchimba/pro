@@ -197,9 +197,9 @@ io.on("connection", (socket) => {
   });
 
   // Sign translations — relayed to everyone else in the room, not persisted.
-  socket.on("sign-translation", ({ roomId, word, confidence, mode }) => {
+  socket.on("sign-translation", ({ roomId, word, confidence, mode, name }) => {
     const room = rooms.get(roomId);
-    const displayName = room?.users.get(socket.id)?.name || "Guest";
+    const displayName = name || room?.users.get(socket.id)?.name || "Guest";
     socket.to(roomId).emit("sign-translation", {
       socketId: socket.id,
       name: displayName,
@@ -211,29 +211,36 @@ io.on("connection", (socket) => {
   });
 
   // Speech transcripts — relayed to everyone else in the room with ultra-low latency (volatile)
-  socket.on("speech-transcript", ({ roomId, transcript }) => {
+  socket.on("speech-transcript", ({ roomId, transcript, speakerName }) => {
+    const room = rooms.get(roomId);
+    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
     socket.volatile.to(roomId).emit("speech-transcript", {
       socketId: socket.id,
       transcript,
+      speakerName: displayName,
     });
   });
 
   // Speech completed captions — relayed to everyone else in the room for subtitles.
   socket.on("speech-caption", ({ roomId, text, speakerName }) => {
+    const room = rooms.get(roomId);
+    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
     socket.to(roomId).emit("speech-caption", {
       socketId: socket.id,
       text,
-      speakerName,
+      speakerName: displayName,
     });
   });
 
   // Speech-to-sign room broadcast for the shared sign animation panel.
   socket.on("speech-sign", ({ roomId, word, videoUrl, speakerName }) => {
+    const room = rooms.get(roomId);
+    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
     socket.to(roomId).emit("speech-sign", {
       socketId: socket.id,
       word,
       videoUrl,
-      speakerName,
+      speakerName: displayName,
     });
   });
 
