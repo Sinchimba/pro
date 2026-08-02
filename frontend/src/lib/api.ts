@@ -63,11 +63,25 @@ export async function createMeeting(token: string): Promise<{ roomId: string }> 
   return handleResponse<{ roomId: string }>(res);
 }
 
-export async function validateMeeting(roomId: string): Promise<{ valid: boolean; error?: string }> {
+export async function validateMeeting(roomId: string, token: string): Promise<{ valid: boolean; error?: string }> {
   const res = await fetch(`${BACKEND_URL}/api/meetings/validate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ roomId }),
   });
   return handleResponse<{ valid: boolean; error?: string }>(res);
+}
+
+export async function logout(token: string): Promise<{ success: boolean; message?: string }> {
+  const res = await fetch(`${BACKEND_URL}/auth/logout`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return handleResponse<{ success: boolean; message?: string }>(res);
 }

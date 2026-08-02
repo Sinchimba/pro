@@ -11,6 +11,12 @@ interface ChatPanelProps {
 
 const COMMON_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🎉", "👏", "🔥", "🙌", "💡"];
 
+function isSafeFileUri(dataUrl: string): boolean {
+  if (!dataUrl) return false;
+  const lower = dataUrl.toLowerCase();
+  return lower.startsWith("data:") && !lower.includes("javascript:") && !lower.includes("vbscript:");
+}
+
 export function ChatPanel({ messages, onSend, onClose }: ChatPanelProps) {
   const [draft, setDraft] = useState("");
   const [selectedFile, setSelectedFile] = useState<ChatFile | null>(null);
@@ -93,32 +99,38 @@ export function ChatPanel({ messages, onSend, onClose }: ChatPanelProps) {
               {msg.text && <p className="mr-chat-message-text">{msg.text}</p>}
               
               {msg.file && (
-                <div className="mr-chat-attachment">
-                  {msg.file.type.startsWith("image/") ? (
-                    <img
-                      src={msg.file.data}
-                      alt={msg.file.name}
-                      className="mr-chat-image-preview"
-                    />
-                  ) : (
-                    <div className="mr-chat-file-card">
-                      <PaperclipIcon size={14} />
-                      <span className="mr-chat-file-name" title={msg.file.name}>
-                        {msg.file.name}
-                      </span>
-                      <span className="mr-chat-file-size">
-                        ({formatBytes(msg.file.size)})
-                      </span>
-                    </div>
-                  )}
-                  <a
-                    href={msg.file.data}
-                    download={msg.file.name}
-                    className="mr-chat-download-link"
-                  >
-                    Download
-                  </a>
-                </div>
+                isSafeFileUri(msg.file.data) ? (
+                  <div className="mr-chat-attachment">
+                    {msg.file.type.startsWith("image/") ? (
+                      <img
+                        src={msg.file.data}
+                        alt={msg.file.name}
+                        className="mr-chat-image-preview"
+                      />
+                    ) : (
+                      <div className="mr-chat-file-card">
+                        <PaperclipIcon size={14} />
+                        <span className="mr-chat-file-name" title={msg.file.name}>
+                          {msg.file.name}
+                        </span>
+                        <span className="mr-chat-file-size">
+                          ({formatBytes(msg.file.size)})
+                        </span>
+                      </div>
+                    )}
+                    <a
+                      href={msg.file.data}
+                      download={msg.file.name}
+                      className="mr-chat-download-link"
+                    >
+                      Download
+                    </a>
+                  </div>
+                ) : (
+                  <div className="mr-chat-attachment-blocked" style={{ color: "#ff8b8b", fontSize: "0.85rem", fontStyle: "italic", marginTop: "0.25rem" }}>
+                    ⚠️ Blocked unsafe file attachment ({msg.file.name})
+                  </div>
+                )
               )}
             </div>
           </div>

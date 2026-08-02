@@ -23,7 +23,13 @@ interface UserJoinedPayload {
  * - tracks who's the host, and everyone's display name and media status
  * - supports toggling audio/video and switching to screen share
  */
-export function useWebRTC(roomId: string, displayName: string, enabled: boolean = true, userId?: number | null) {
+export function useWebRTC(
+  roomId: string,
+  displayName: string,
+  enabled: boolean = true,
+  userId?: number | null,
+  token?: string | null
+) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<RemoteStream[]>([]);
   const [joined, setJoined] = useState(false);
@@ -85,6 +91,8 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
           setJoined(true);
         };
 
+        // Attach authentication credentials for the Socket handshake
+        socket.auth = { token };
         socket.connect();
         if (socket.connected) {
           socketConnectHandler();
@@ -310,6 +318,21 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       );
     }
 
+    // Session invalidated listener: eviction logic when logged in elsewhere
+    function handleSessionInvalidated({ message }: { message: string }) {
+      alert(message || "This account has logged in on another device.");
+      window.dispatchEvent(new CustomEvent("session-invalidated-event"));
+    }
+
+    function handleConnectError(err: any) {
+      console.error("[useWebRTC] socket connection authentication failed:", err.message);
+      setError(err.message || "Failed to authenticate connection.");
+      setJoined(false);
+      if (err.message && err.message.includes("Session invalidated")) {
+        window.dispatchEvent(new CustomEvent("session-invalidated-event"));
+      }
+    }
+
     socket.on("existing-users", handleExistingUsers);
     socket.on("user-joined", trackMeta);
     socket.on("user-joined", handleUserJoined);
@@ -321,6 +344,8 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
     socket.on("room-full", handleRoomFull);
     socket.on("user-video-toggle", handleUserVideoToggle);
     socket.on("user-audio-toggle", handleUserAudioToggle);
+    socket.on("session-invalidated", handleSessionInvalidated);
+    socket.on("connect_error", handleConnectError);
 
     return () => {
       cancelled = true;
@@ -338,6 +363,8 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       socket.off("room-full", handleRoomFull);
       socket.off("user-video-toggle", handleUserVideoToggle);
       socket.off("user-audio-toggle", handleUserAudioToggle);
+      socket.off("session-invalidated", handleSessionInvalidated);
+      socket.off("connect_error", handleConnectError);
 
       socket.emit("leave-room");
       socket.disconnect();
@@ -349,7 +376,7 @@ export function useWebRTC(roomId: string, displayName: string, enabled: boolean 
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, displayName, enabled, userId]);
+  }, [roomId, displayName, enabled, userId, token]);
 
   function toggleAudio() {
     const stream = localStreamRef.current;

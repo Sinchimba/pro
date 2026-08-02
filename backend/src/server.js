@@ -6,16 +6,20 @@ import path from "path";
 import { fileURLToPath } from "url";
 import authRoutes from "./routes/auth.js";
 import meetingsRoutes from "./routes/meetings.js";
+import translateRoutes from "./routes/translate.js";
 import { db } from "./db/connection.js";
 import { redis } from "./config/redis.js";
+import jwt from "jsonwebtoken";
+import { config } from "./config/env.js";
+import { logger } from "./utils/logger.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-// In production (Render), set FRONTEND_URL to your deployed frontend's
-// exact URL so only your own site can talk to this backend. Falls back
-// to allowing everything, which is fine for local development.
+// Save app reference to set/get IO object in routes
+app.set("io", null);
+
 const FRONTEND_URL = process.env.FRONTEND_URL || "*";
 app.use(cors({ origin: FRONTEND_URL }));
 app.use(express.json({ limit: "10mb" }));
@@ -23,9 +27,8 @@ app.use(express.urlencoded({ limit: "10mb", extended: true }));
 
 app.use("/auth", authRoutes);
 app.use("/api/meetings", meetingsRoutes);
+app.use("/api/translate", translateRoutes);
 
-// Simple health check — useful once this is deployed on Render,
-// so you can confirm the service is alive before debugging WebRTC.
 app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: Date.now() });
 });
@@ -46,7 +49,6 @@ app.get("*", (req, res, next) => {
 
 const httpServer = createServer(app);
 
-// Socket.io server, using the same origin restriction as above.
 const io = new Server(httpServer, {
   cors: {
     origin: FRONTEND_URL,
@@ -54,72 +56,140 @@ const io = new Server(httpServer, {
   },
 });
 
-// In-memory room tracking:
-// { roomId: { users: Map<socketId, { name: string, userId: number|null, videoOff: boolean, audioOff: boolean }>, hostSocketId: string } }
+app.set("io", io);
+
+// Socket.IO authentication and active session check middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.split(" ")[1];
+    if (!token) {
+      logger.security("Socket connection blocked: Missing token", { socketId: socket.id });
+      return next(new Error("Authentication error: Missing token."));
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, config.JWT_SECRET);
+    } catch (err) {
+      logger.security("Socket connection blocked: Invalid token signature", { socketId: socket.id, error: err.message });
+      return next(new Error("Authentication error: Invalid token."));
+    }
+
+    // Single Active Session check
+    const activeToken = await redis.get(`user:session:${decoded.id}`);
+    if (activeToken && activeToken !== token) {
+      logger.security("Socket connection blocked: Session invalidated (logged in on another device)", { userId: decoded.id, email: decoded.email });
+      return next(new Error("Authentication error: Session invalidated. Logged in from another device."));
+    }
+
+    if (!activeToken) {
+      logger.security("Socket connection blocked: Session expired or logged out", { userId: decoded.id, email: decoded.email });
+      return next(new Error("Authentication error: Session expired or logged out."));
+    }
+
+    // Store verified credentials in socket metadata
+    socket.user = decoded;
+    socket.token = token;
+    next();
+  } catch (err) {
+    logger.error("Socket authentication middleware error", err, { socketId: socket.id });
+    return next(new Error("Authentication error: Internal server error."));
+  }
+});
+
 const rooms = new Map();
 
 io.on("connection", (socket) => {
-  console.log(`[connect] ${socket.id}`);
+  logger.info(`Socket connected`, { socketId: socket.id, userId: socket.user?.id, email: socket.user?.email });
 
-  // Step 1: A user wants to join a specific room (meeting code/link).
-  socket.on("join-room", ({ roomId, displayName, userId }) => {
-    if (rooms.has(roomId)) {
-      const room = rooms.get(roomId);
-      if (room.users.size >= 5) {
-        socket.emit("room-full", { roomId, max: 5 });
+  // A verified user wants to join a specific room
+  socket.on("join-room", async ({ roomId, displayName }) => {
+    try {
+      const userId = socket.user.id;
+      const actualDisplayName = socket.user.name || displayName || "Guest";
+
+      // Input Validation: Check roomId format
+      if (!/^[a-z]+-[a-z]+-\d{4}$/.test(roomId)) {
+        logger.security("Socket join-room rejected: Invalid room ID format", { socketId: socket.id, roomId, userId });
+        socket.emit("join-error", "Invalid meeting ID format.");
         return;
       }
+
+      // Check room in DB
+      const result = await db.query("SELECT * FROM meetings WHERE id = $1", [roomId]);
+      const row = result.rows[0];
+      if (!row) {
+        logger.security("Socket join-room rejected: Room not found", { socketId: socket.id, roomId, userId });
+        socket.emit("join-error", "Meeting room not found.");
+        return;
+      }
+
+      const now = new Date();
+      if (new Date(row.expires_at) < now) {
+        logger.info("Socket join-room rejected: Meeting expired", { socketId: socket.id, roomId, userId });
+        socket.emit("join-error", "Meeting has expired.");
+        return;
+      }
+
+      if (rooms.has(roomId)) {
+        const room = rooms.get(roomId);
+        if (room.users.size >= 5) {
+          logger.info("Socket join-room rejected: Room full", { socketId: socket.id, roomId, userId });
+          socket.emit("room-full", { roomId, max: 5 });
+          return;
+        }
+      }
+
+      socket.join(roomId);
+
+      if (!rooms.has(roomId)) {
+        rooms.set(roomId, { users: new Map(), hostSocketId: socket.id });
+      }
+      const room = rooms.get(roomId);
+
+      const existingUsers = Array.from(room.users.entries()).map(
+        ([socketId, info]) => ({ 
+          socketId, 
+          name: info.name,
+          videoOff: info.videoOff,
+          audioOff: info.audioOff
+        })
+      );
+      socket.emit("existing-users", {
+        users: existingUsers,
+        hostSocketId: room.hostSocketId,
+      });
+
+      room.users.set(socket.id, {
+        name: actualDisplayName,
+        userId: userId,
+        videoOff: false,
+        audioOff: false
+      });
+      socket.data.roomId = roomId;
+
+      socket.to(roomId).emit("user-joined", {
+        socketId: socket.id,
+        name: actualDisplayName,
+        videoOff: false,
+        audioOff: false
+      });
+
+      logger.info(`User joined room`, { socketId: socket.id, userId, displayName: actualDisplayName, roomId });
+    } catch (err) {
+      logger.error("Socket join-room handler error", err, { socketId: socket.id });
+      socket.emit("join-error", "An error occurred while joining the room.");
     }
-
-    socket.join(roomId);
-
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, { users: new Map(), hostSocketId: socket.id });
-    }
-    const room = rooms.get(roomId);
-
-    // Tell the NEW user who is already in the room (with names + who's
-    // host), so they know who to send WebRTC offers to and how to label
-    // the participant list.
-    const existingUsers = Array.from(room.users.entries()).map(
-      ([socketId, info]) => ({ 
-        socketId, 
-        name: info.name,
-        videoOff: info.videoOff,
-        audioOff: info.audioOff
-      })
-    );
-    socket.emit("existing-users", {
-      users: existingUsers,
-      hostSocketId: room.hostSocketId,
-    });
-
-    room.users.set(socket.id, {
-      name: displayName || "Guest",
-      userId: userId || null,
-      videoOff: false,
-      audioOff: false
-    });
-    socket.data.roomId = roomId;
-
-    // Tell EVERYONE ELSE in the room that a new user joined,
-    // so they can expect an incoming offer.
-    socket.to(roomId).emit("user-joined", {
-      socketId: socket.id,
-      name: displayName || "Guest",
-      videoOff: false,
-      audioOff: false
-    });
-
-    console.log(
-      `[join-room] ${socket.id} (${displayName}, userId: ${userId}) joined ${roomId}. Room size: ${room.users.size}`
-    );
   });
 
-  // Step 2: WebRTC offer/answer/ICE exchange.
-  // These are just relayed — the server never looks inside them,
-  // it only knows who to forward them to (targetSocketId).
+  // Relayed signaling events - restricted to target sockets sharing the exact same room
   socket.on("offer", ({ targetSocketId, offer }) => {
+    if (!offer || typeof targetSocketId !== "string") return;
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
+      logger.security("Relay offer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+      return;
+    }
     io.to(targetSocketId).emit("offer", {
       fromSocketId: socket.id,
       offer,
@@ -127,6 +197,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("answer", ({ targetSocketId, answer }) => {
+    if (!answer || typeof targetSocketId !== "string") return;
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
+      logger.security("Relay answer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+      return;
+    }
     io.to(targetSocketId).emit("answer", {
       fromSocketId: socket.id,
       answer,
@@ -134,14 +210,24 @@ io.on("connection", (socket) => {
   });
 
   socket.on("ice-candidate", ({ targetSocketId, candidate }) => {
+    if (!candidate || typeof targetSocketId !== "string") return;
+    const targetSocket = io.sockets.sockets.get(targetSocketId);
+    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
+      logger.security("Relay ICE candidate blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+      return;
+    }
     io.to(targetSocketId).emit("ice-candidate", {
       fromSocketId: socket.id,
       candidate,
     });
   });
 
-  // Media toggle states
+  // Media toggles — room and parameter type validated
   socket.on("toggle-video", ({ roomId, enabled }) => {
+    if (socket.data.roomId !== roomId || typeof enabled !== "boolean") {
+      logger.security("Socket validation failed on toggle-video", { socketId: socket.id, roomId });
+      return;
+    }
     const room = rooms.get(roomId);
     if (room) {
       const user = room.users.get(socket.id);
@@ -156,6 +242,10 @@ io.on("connection", (socket) => {
   });
 
   socket.on("toggle-audio", ({ roomId, enabled }) => {
+    if (socket.data.roomId !== roomId || typeof enabled !== "boolean") {
+      logger.security("Socket validation failed on toggle-audio", { socketId: socket.id, roomId });
+      return;
+    }
     const room = rooms.get(roomId);
     if (room) {
       const user = room.users.get(socket.id);
@@ -169,37 +259,57 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Chat messages — relayed to everyone else in the room, not persisted.
+  // Chat messages — room and structure validated
   socket.on("chat-message", ({ roomId, name, text, file }) => {
+    if (socket.data.roomId !== roomId) {
+      logger.security("Socket room validation failed on chat-message", { socketId: socket.id, roomId });
+      return;
+    }
+    if (typeof text !== "string" || (file && (typeof file.name !== "string" || typeof file.type !== "string" || typeof file.data !== "string"))) {
+      logger.security("Malformed chat-message payload rejected", { socketId: socket.id });
+      return;
+    }
+    const displayName = socket.user.name || name || "Guest";
     socket.to(roomId).emit("chat-message", {
       socketId: socket.id,
-      name,
+      name: displayName,
       text,
       file,
       timestamp: Date.now(),
     });
   });
 
-  // Reactions — relayed to everyone else in the room, not persisted.
+  // Reactions — room and size validated
   socket.on("reaction", ({ roomId, emoji }) => {
+    if (socket.data.roomId !== roomId || typeof emoji !== "string" || emoji.length > 8) {
+      logger.security("Socket validation failed on reaction", { socketId: socket.id, roomId });
+      return;
+    }
     socket.to(roomId).emit("reaction", {
       socketId: socket.id,
       emoji,
     });
   });
 
-  // Raise hand — broadcast a toggle to everyone else in the room.
+  // Raise hand — room and type validated
   socket.on("raise-hand", ({ roomId, raised }) => {
+    if (socket.data.roomId !== roomId || typeof raised !== "boolean") {
+      logger.security("Socket validation failed on raise-hand", { socketId: socket.id, roomId });
+      return;
+    }
     socket.to(roomId).emit("raise-hand", {
       socketId: socket.id,
       raised,
     });
   });
 
-  // Sign translations — relayed to everyone else in the room, not persisted.
+  // Sign translations — room and fields validated
   socket.on("sign-translation", ({ roomId, word, confidence, mode, name }) => {
-    const room = rooms.get(roomId);
-    const displayName = name || room?.users.get(socket.id)?.name || "Guest";
+    if (socket.data.roomId !== roomId || typeof word !== "string" || typeof confidence !== "number" || typeof mode !== "string") {
+      logger.security("Socket validation failed on sign-translation", { socketId: socket.id, roomId });
+      return;
+    }
+    const displayName = socket.user.name || name || "Guest";
     socket.to(roomId).emit("sign-translation", {
       socketId: socket.id,
       name: displayName,
@@ -210,10 +320,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Speech transcripts — relayed to everyone else in the room with ultra-low latency (volatile)
+  // Speech transcripts — room and type validated
   socket.on("speech-transcript", ({ roomId, transcript, speakerName }) => {
-    const room = rooms.get(roomId);
-    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
+    if (socket.data.roomId !== roomId || typeof transcript !== "string") {
+      logger.security("Socket validation failed on speech-transcript", { socketId: socket.id, roomId });
+      return;
+    }
+    const displayName = socket.user.name || speakerName || "Guest";
     socket.volatile.to(roomId).emit("speech-transcript", {
       socketId: socket.id,
       transcript,
@@ -221,10 +334,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Speech completed captions — relayed to everyone else in the room for subtitles.
+  // Speech completed captions — room and type validated
   socket.on("speech-caption", ({ roomId, text, speakerName }) => {
-    const room = rooms.get(roomId);
-    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
+    if (socket.data.roomId !== roomId || typeof text !== "string") {
+      logger.security("Socket validation failed on speech-caption", { socketId: socket.id, roomId });
+      return;
+    }
+    const displayName = socket.user.name || speakerName || "Guest";
     socket.to(roomId).emit("speech-caption", {
       socketId: socket.id,
       text,
@@ -232,10 +348,13 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Speech-to-sign room broadcast for the shared sign animation panel.
+  // Speech-to-sign broadcast — room and parameters validated
   socket.on("speech-sign", ({ roomId, word, videoUrl, speakerName }) => {
-    const room = rooms.get(roomId);
-    const displayName = speakerName || room?.users.get(socket.id)?.name || "Guest";
+    if (socket.data.roomId !== roomId || typeof word !== "string" || typeof videoUrl !== "string") {
+      logger.security("Socket validation failed on speech-sign", { socketId: socket.id, roomId });
+      return;
+    }
+    const displayName = socket.user.name || speakerName || "Guest";
     socket.to(roomId).emit("speech-sign", {
       socketId: socket.id,
       word,
@@ -244,13 +363,12 @@ io.on("connection", (socket) => {
     });
   });
 
-  // Step 3: Cleanup when someone leaves or disconnects.
   socket.on("leave-room", () => {
     leaveCurrentRoom(socket);
   });
 
   socket.on("disconnect", () => {
-    console.log(`[disconnect] ${socket.id}`);
+    logger.info(`Socket disconnected`, { socketId: socket.id, userId: socket.user?.id });
     leaveCurrentRoom(socket);
   });
 
@@ -262,35 +380,31 @@ io.on("connection", (socket) => {
     if (room) {
       room.users.delete(socket.id);
 
-      // If the host left, hand the crown to whoever's been in the room
-      // longest (the next entry in the Map, which preserves insertion order).
+      // Host migration if host left
       if (room.hostSocketId === socket.id) {
         const next = room.users.keys().next();
         room.hostSocketId = next.done ? null : next.value;
         if (room.hostSocketId) {
           io.to(roomId).emit("host-changed", room.hostSocketId);
 
-          // Update database meeting host if the new host is authenticated
           const newHostUser = room.users.get(room.hostSocketId);
           if (newHostUser && newHostUser.userId) {
             db.query("UPDATE meetings SET host_id = $1 WHERE id = $2", [newHostUser.userId, roomId])
-              .then(() => console.log(`[db] Host migrated to user_id: ${newHostUser.userId} for room ${roomId}`))
-              .catch(err => console.error("[db] Host migration DB update failed:", err));
+              .then(() => logger.info(`Host migrated successfully`, { newHostId: newHostUser.userId, roomId }))
+              .catch(err => logger.error("Host migration DB update failed", err, { roomId }));
           }
         }
       }
 
       if (room.users.size === 0) {
         rooms.delete(roomId);
-        // Expire Redis key immediately
         redis.del(`meeting:${roomId}:status`)
-          .catch(err => console.error("[redis] Failed to delete expired key:", err));
+          .catch(err => logger.error("Failed to delete expired meeting key from Redis", err, { roomId }));
 
-        // Mark meeting link as expired in database
         const nowStr = new Date().toISOString();
         db.query("UPDATE meetings SET expires_at = $1 WHERE id = $2", [nowStr, roomId])
-          .then(() => console.log(`[db/redis] Meeting link ${roomId} expired as all participants left.`))
-          .catch(err => console.error("[db] Expire room failed:", err));
+          .then(() => logger.info("Meeting expired because all participants left", { roomId }))
+          .catch(err => logger.error("DB room expiration mark failed", err, { roomId }));
       }
     }
 
@@ -300,7 +414,7 @@ io.on("connection", (socket) => {
   }
 });
 
-const PORT = process.env.PORT || 4000;
+const PORT = config.PORT || 4000;
 httpServer.listen(PORT, () => {
-  console.log(`Signaling server running on port ${PORT}`);
+  logger.info(`Signaling server listening`, { port: PORT });
 });

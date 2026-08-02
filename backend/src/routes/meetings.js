@@ -1,11 +1,10 @@
 import { Router } from "express";
-import jwt from "jsonwebtoken";
 import { db } from "../db/connection.js";
-import { config } from "../config/env.js";
 import { redis } from "../config/redis.js";
+import { authenticate } from "../middleware/auth.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
-const JWT_SECRET = config.JWT_SECRET;
 
 const ADJECTIVES = [
   "swift", "calm", "bright", "quiet", "bold",
@@ -21,23 +20,6 @@ function generateRoomId() {
   const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
   const number = Math.floor(1000 + Math.random() * 9000);
   return `${adjective}-${noun}-${number}`;
-}
-
-// Authentication middleware
-function authenticate(req, res, next) {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({ error: "Missing authorization token." });
-  }
-
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: "Invalid token." });
-    }
-    req.user = user;
-    next();
-  });
 }
 
 // Create a meeting link (Authenticated)
@@ -58,20 +40,28 @@ router.post("/create", authenticate, async (req, res) => {
     // Save to Redis with 10-minute TTL (600 seconds)
     await redis.set(`meeting:${roomId}:status`, "pending", "EX", 10 * 60);
 
-    console.log(`[db/redis] Meeting link created: ${roomId} by host user_id: ${hostId} with 10-min TTL.`);
+    logger.info("Meeting link created successfully", { roomId, hostId });
     res.status(201).json({ roomId });
   } catch (err) {
-    console.error("[meetings/create] error:", err);
+    logger.error("Failed to generate meeting link", err, { hostId: req.user?.id });
     res.status(500).json({ error: "Failed to generate meeting link." });
   }
 });
 
-// Validate meeting link (Public)
-router.post("/validate", async (req, res) => {
+// Validate meeting link (Authenticated)
+router.post("/validate", authenticate, async (req, res) => {
   try {
     const { roomId } = req.body;
+    const userId = req.user.id;
+
     if (!roomId) {
       return res.status(400).json({ error: "Meeting room ID is required." });
+    }
+
+    // Input validation: roomId format must match generated structure exactly
+    if (!/^[a-z]+-[a-z]+-\d{4}$/.test(roomId)) {
+      logger.security("Invalid meeting ID format submitted", { roomId, userId });
+      return res.status(400).json({ error: "Invalid meeting room ID format." });
     }
 
     let status = await redis.get(`meeting:${roomId}:status`);
@@ -84,6 +74,7 @@ router.post("/validate", async (req, res) => {
 
     const row = result.rows[0];
     if (!row) {
+      logger.security("Meeting room not found", { roomId, userId });
       return res.status(404).json({ valid: false, error: "Meeting room not found." });
     }
 
@@ -94,6 +85,7 @@ router.post("/validate", async (req, res) => {
     if (expiresAt < now) {
       // If DB has expired, delete from Redis just in case
       await redis.del(`meeting:${roomId}:status`);
+      logger.info("Meeting validation failed: expired", { roomId, userId });
       return res.status(410).json({ valid: false, error: "Meeting link has expired." });
     }
 
@@ -111,7 +103,6 @@ router.post("/validate", async (req, res) => {
 
     if (!isUsed) {
       // First time join: mark as used, set first_used_at, and extend database expiration to 24 hours
-      // (a reasonable meeting duration limit instead of 365 days, but can be customized)
       const extendedExpiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
       const firstUsedAt = now.toISOString();
 
@@ -123,15 +114,15 @@ router.post("/validate", async (req, res) => {
       // Transition Redis status to active with 24-hour expiration
       await redis.set(`meeting:${roomId}:status`, "active", "EX", 24 * 60 * 60);
 
-      console.log(`[db/redis] Meeting link ${roomId} is now active (first used). Expiration extended.`);
+      logger.info("Meeting activated on first join", { roomId, userId });
     }
 
+    logger.info("Meeting link validated successfully", { roomId, userId });
     res.json({ valid: true });
   } catch (err) {
-    console.error("[meetings/validate] error:", err);
+    logger.error("Failed to validate meeting link", err, { userId: req.user?.id });
     res.status(500).json({ error: "Failed to validate meeting link." });
   }
 });
 
 export default router;
-

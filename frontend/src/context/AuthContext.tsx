@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import type { ReactNode } from "react";
+import { logout as apiLogout } from "../lib/api";
 import type { AuthUser } from "../lib/api";
 
 interface AuthContextValue {
@@ -41,6 +42,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Notify the backend asynchronously to remove the token from Redis
+    if (token) {
+      apiLogout(token).catch((err) => {
+        console.warn("Failed to notify server of logout session removal:", err);
+      });
+    }
+
     setUser(null);
     setToken(null);
     localStorage.removeItem(STORAGE_KEY);

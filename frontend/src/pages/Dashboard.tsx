@@ -65,7 +65,7 @@ export function Dashboard({ onJoin }: DashboardProps) {
     setErrorMsg(null);
     setLoading(true);
     try {
-      const res = await validateMeeting(trimmed);
+      const res = await validateMeeting(trimmed, token || "");
       if (res.valid) {
         onJoin(trimmed);
       } else {

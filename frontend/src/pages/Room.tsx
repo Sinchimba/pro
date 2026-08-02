@@ -57,17 +57,28 @@ interface Tile {
 type LayoutMode = "grid" | "spotlight" | "sidebar";
 
 export function Room({ roomId, onLeave }: RoomProps) {
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
   const myName = user?.name || "You";
 
   const [isValidating, setIsValidating] = useState(true);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Listen to session invalidation event (logged in from another device)
+  useEffect(() => {
+    function handleSessionInvalidatedEvent() {
+      logout();
+    }
+    window.addEventListener("session-invalidated-event", handleSessionInvalidatedEvent);
+    return () => {
+      window.removeEventListener("session-invalidated-event", handleSessionInvalidatedEvent);
+    };
+  }, [logout]);
+
   useEffect(() => {
     let active = true;
     async function checkRoom() {
       try {
-        const res = await validateMeeting(roomId);
+        const res = await validateMeeting(roomId, token || "");
         if (!active) return;
         if (res.valid) {
           setIsValidating(false);
@@ -78,6 +89,11 @@ export function Room({ roomId, onLeave }: RoomProps) {
       } catch (err: any) {
         if (!active) return;
         setValidationError(err.message || "Failed to validate the meeting link.");
+        if (err.message && (err.message.includes("Session invalidated") || err.message.includes("Session expired") || err.message.includes("logged out"))) {
+          setTimeout(() => {
+            logout();
+          }, 3000);
+        }
         setIsValidating(false);
       }
     }
@@ -85,7 +101,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
     return () => {
       active = false;
     };
-  }, [roomId]);
+  }, [roomId, token, logout]);
 
   const {
     localStream,
@@ -101,7 +117,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
     error,
     hostSocketId,
     isHost,
-  } = useWebRTC(roomId, myName, !isValidating && !validationError, user?.id);
+  } = useWebRTC(roomId, myName, !isValidating && !validationError, user?.id, token);
 
   const activeSpeakerId = useActiveSpeaker(localStream, remoteStreams);
   const { messages, sendMessage, unreadCount, markAllRead } = useChat(

@@ -1,37 +1,14 @@
 import { Router } from "express";
+import { authenticate } from "../middleware/auth.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
-// Dictionary of common signs for BSL, ASL, ISL for local/simulation fallback
-const simulatedSigns = {
-  ASL: [
-    { word: "Hello", confidence: 0.96 },
-    { word: "Thank You", confidence: 0.94 },
-    { word: "Please", confidence: 0.91 },
-    { word: "Yes", confidence: 0.98 },
-    { word: "No", confidence: 0.97 },
-    { word: "Help", confidence: 0.89 },
-    { word: "Excuse Me", confidence: 0.88 },
-    { word: "I Love You", confidence: 0.95 }
-  ],
-  BSL: [
-    { word: "Hello", confidence: 0.95 },
-    { word: "Good Morning", confidence: 0.92 },
-    { word: "Please", confidence: 0.90 },
-    { word: "Thank You", confidence: 0.93 },
-    { word: "Goodbye", confidence: 0.91 },
-    { word: "Sorry", confidence: 0.87 }
-  ],
-  ISL: [
-    { word: "Namaste", confidence: 0.97 },
-    { word: "Thank You", confidence: 0.93 },
-    { word: "Welcome", confidence: 0.91 },
-    { word: "Please", confidence: 0.89 },
-    { word: "Good Job", confidence: 0.94 }
-  ]
-};
+// Validate Base64 image pattern
+const BASE64_IMAGE_REGEX = /^data:image\/(jpeg|jpg|png|webp);base64,/;
 
-router.post("/translate-sign", async (req, res) => {
+router.post("/translate-sign", authenticate, async (req, res) => {
+  const userId = req.user.id;
   try {
     const { image, language } = req.body;
 
@@ -39,12 +16,28 @@ router.post("/translate-sign", async (req, res) => {
       return res.status(400).json({ error: "Missing image frame data." });
     }
 
+    // Input Validation: Check if it is a valid base64 image data URL
+    if (typeof image !== "string" || (!BASE64_IMAGE_REGEX.test(image) && !image.startsWith("data:image/"))) {
+      logger.security("Invalid image frame data format submitted", { userId });
+      return res.status(400).json({ error: "Invalid image format. Only JPEG, PNG, and WebP data URLs are allowed." });
+    }
+
     const lang = language || "ASL";
+    if (!["ASL", "BSL", "ISL"].includes(lang)) {
+      return res.status(400).json({ error: "Unsupported sign language." });
+    }
+
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (apiKey) {
       // Clean base64 header if present
       const base64Data = image.replace(/^data:image\/\w+;base64,/, "");
+
+      // Input Validation: Check that the base64 string doesn't contain invalid characters
+      if (!/^[a-zA-Z0-9+/={}\s]+$/.test(base64Data.slice(0, 100))) {
+        logger.security("Malicious or malformed base64 payload detected", { userId });
+        return res.status(400).json({ error: "Malformed image data." });
+      }
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
@@ -89,17 +82,19 @@ router.post("/translate-sign", async (req, res) => {
             cleaned = cleaned.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "");
           }
           const parsed = JSON.parse(cleaned.trim());
+          
+          logger.info("Sign language cloud translation successful", { userId, word: parsed.word, lang });
           return res.json({
             word: parsed.word || "",
             confidence: parsed.confidence || 0.0,
             mode: "cloud"
           });
         } catch (e) {
-          console.error("Failed to parse Gemini JSON output:", textResult, e);
+          logger.error("Failed to parse Gemini JSON output", e, { textResult, userId });
         }
       }
     } else {
-      console.warn("[Sign Language Translation] GEMINI_API_KEY is not set. Cloud translation is inactive.");
+      logger.security("GEMINI_API_KEY is not set. Cloud translation fallback to empty response.", { userId });
       return res.json({
         word: "",
         confidence: 0.0,
@@ -115,7 +110,7 @@ router.post("/translate-sign", async (req, res) => {
     });
 
   } catch (error) {
-    console.error("[Backend Sign Translation Error]:", error);
+    logger.error("Backend sign translation error", error, { userId });
     res.status(500).json({ error: "Failed to translate sign language gesture." });
   }
 });
