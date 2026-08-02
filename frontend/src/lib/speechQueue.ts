@@ -54,6 +54,7 @@ class SpeechQueue {
       if (!this.speaking) return;
       this.speaking = false;
       this.currentUtterance = null;
+      window.clearTimeout(timeoutId);
       if (item.onEnd) {
         item.onEnd();
       }
@@ -67,7 +68,7 @@ class SpeechQueue {
     };
 
     // Safety timeout in case speech synthesis fails silently or is blocked by browser policies
-    const timeout = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       if (this.currentUtterance === utterance && this.speaking) {
         console.warn("[SpeechQueue] SpeechSynthesis timed out. Force recovering...");
         handleEnd();
