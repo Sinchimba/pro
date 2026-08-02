@@ -14,6 +14,7 @@ import { ChatPanel } from "../components/VideoCall/ChatPanel";
 import { ReactionOverlay } from "../components/VideoCall/ReactionOverlay";
 import { SignTranslationPanel } from "../components/VideoCall/SignTranslationPanel";
 import { matchSignWord, type SignEntry } from "../lib/signVocabulary";
+import { speechQueue } from "../lib/speechQueue";
 import { BackgroundSettings } from "../components/VideoCall/BackgroundSettings";
 import type { BackgroundEffect } from "../components/VideoCall/BackgroundSettings";
 import {
@@ -139,7 +140,17 @@ export function Room({ roomId, onLeave }: RoomProps) {
 
         const nextSign = matchSignWord(text);
         if (nextSign) {
-          setActiveSign(nextSign);
+          speechQueue.enqueue({
+            id: `speech-sign-local-${nextSign.word}-${Date.now()}`,
+            text: nextSign.word,
+            silent: true,
+            onStart: () => {
+              setActiveSign(nextSign);
+            },
+            onEnd: () => {
+              setActiveSign(null);
+            }
+          });
           socket.emit("speech-sign", {
             roomId,
             word: nextSign.word,
@@ -229,35 +240,32 @@ export function Room({ roomId, onLeave }: RoomProps) {
     }) {
       if (!word) return;
 
-      setActiveCaption({
-        speakerName: name || "Guest",
+      const eventId = `sign-trans-remote-${socketId}-${word}-${Date.now()}`;
+      speechQueue.enqueue({
+        id: eventId,
         text: word,
-        type: "Sign",
-        timestamp: Date.now(),
-      });
+        silent: socketId === socket.id,
+        onStart: () => {
+          setActiveCaption({
+            speakerName: name || "Guest",
+            text: word,
+            type: "Sign",
+            timestamp: Date.now(),
+          });
 
-      setActiveTranslations((prev) => ({
-        ...prev,
-        [socketId]: { word, timestamp: Date.now() },
-      }));
-
-      if (socketId !== socket.id) {
-        const utterance = new SpeechSynthesisUtterance(word);
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-      }
-
-      setTimeout(() => {
-        setActiveTranslations((prev) => {
-          const current = prev[socketId];
-          if (current && Date.now() - current.timestamp >= 3000) {
+          setActiveTranslations((prev) => ({
+            ...prev,
+            [socketId]: { word, timestamp: Date.now() },
+          }));
+        },
+        onEnd: () => {
+          setActiveTranslations((prev) => {
             const next = { ...prev };
             delete next[socketId];
             return next;
-          }
-          return prev;
-        });
-      }, 3000);
+          });
+        }
+      });
     }
 
     socket.on("sign-translation", handleIncomingSignTranslation);
@@ -334,31 +342,30 @@ export function Room({ roomId, onLeave }: RoomProps) {
     }) {
       if (!word || !videoUrl) return;
 
-      if (signClearTimeoutRef.current) clearTimeout(signClearTimeoutRef.current);
-
-      setActiveSign({ word, videoUrl });
-      setActiveCaption({
-        speakerName: speakerName || "Guest",
+      const eventId = `speech-sign-remote-${socketId}-${word}-${Date.now()}`;
+      speechQueue.enqueue({
+        id: eventId,
         text: word,
-        type: "Sign",
-        timestamp: Date.now(),
+        silent: socketId === socket.id,
+        onStart: () => {
+          setActiveSign({ word, videoUrl });
+          setActiveCaption({
+            speakerName: speakerName || "Guest",
+            text: word,
+            type: "Sign",
+            timestamp: Date.now(),
+          });
+        },
+        onEnd: () => {
+          setActiveSign(null);
+        }
       });
-
-      signClearTimeoutRef.current = setTimeout(() => {
-        setActiveSign(null);
-      }, 3000);
-
-      if (socketId !== socket.id) {
-        const utterance = new SpeechSynthesisUtterance(word);
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(utterance);
-      }
     }
 
     socket.on("speech-sign", handleIncomingSpeechSign);
     return () => {
       socket.off("speech-sign", handleIncomingSpeechSign);
-      window.speechSynthesis.cancel();
+      speechQueue.cancelAll();
     };
   }, []);
 

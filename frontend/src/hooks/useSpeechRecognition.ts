@@ -88,6 +88,8 @@ export function useSpeechRecognition(
       }
     };
 
+    let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+
     recognition.onerror = (event: Event) => {
       console.warn("[speech recognition] error:", event);
     };
@@ -96,11 +98,16 @@ export function useSpeechRecognition(
     // silence — restart it automatically to keep captions continuous.
     recognition.onend = () => {
       if (enabled) {
-        try {
-          recognition.start();
-        } catch {
-          // ignore — will retry on next onend, or component will unmount
-        }
+        const attemptStart = () => {
+          try {
+            lastProcessedIndexRef.current = -1; // Reset index for the new session
+            recognition.start();
+          } catch (err) {
+            console.warn("[speech recognition] start failed, retrying in 1s...", err);
+            retryTimeout = setTimeout(attemptStart, 1000);
+          }
+        };
+        attemptStart();
       }
     };
 
@@ -108,6 +115,7 @@ export function useSpeechRecognition(
     recognitionRef.current = recognition;
 
     return () => {
+      if (retryTimeout) clearTimeout(retryTimeout);
       recognition.onend = null; // prevent auto-restart during cleanup
       recognition.stop();
       recognitionRef.current = null;

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { GestureRecognizer } from "@mediapipe/tasks-vision";
 import { getSharedGestureRecognizer } from "../lib/mediapipe";
 import { gestureLabelToText } from "../lib/gestureMapping";
+import { speechQueue } from "../lib/speechQueue";
 
 interface TranslationResult {
   word: string;
@@ -16,8 +17,9 @@ export function useSignLanguageTranslation(
   _language: "ASL" | "BSL" | "ISL"
 ) {
   const [result, setResult] = useState<TranslationResult | null>(null);
-  const [isLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [loadError] = useState<string | null>(null);
+  const [modelReady, setModelReady] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const recognizerRef = useRef<GestureRecognizer | null>(null);
@@ -27,6 +29,7 @@ export function useSignLanguageTranslation(
   const lastGestureRef = useRef<string | null>(null);
   const gestureHistoryRef = useRef<string[]>([]);
   const lastCheckRef = useRef<number>(0);
+  const lastFrameTimeRef = useRef<number>(0);
 
   // Load MediaPipe locally via shared singleton
   useEffect(() => {
@@ -34,12 +37,16 @@ export function useSignLanguageTranslation(
 
     async function loadMediaPipe() {
       try {
+        setIsLoading(true);
         const recognizer = await getSharedGestureRecognizer();
         if (!cancelled) {
           recognizerRef.current = recognizer;
+          setIsLoading(false);
+          setModelReady(true);
         }
       } catch (err) {
         console.warn("[MediaPipe Load Warning] Could not load local recognizer:", err);
+        setIsLoading(false);
       }
     }
 
@@ -53,7 +60,7 @@ export function useSignLanguageTranslation(
 
   // Local sign-to-speech loop using MediaPipe only. This stays lightweight and avoids any external API dependency.
   useEffect(() => {
-    if (!enabled || !stream) {
+    if (!enabled || !stream || !modelReady || !recognizerRef.current) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       gestureHistoryRef.current = [];
       lastGestureRef.current = null;
@@ -70,12 +77,41 @@ export function useSignLanguageTranslation(
     function detectLoop() {
       const recognizer = recognizerRef.current;
       const videoEl = videoRef.current;
+      const nowMs = performance.now();
+
+      // Check if video is paused but the stream has active and enabled tracks
+      if (videoEl && videoEl.paused && videoEl.srcObject) {
+        const activeStream = videoEl.srcObject as MediaStream;
+        const videoTrack = activeStream.getVideoTracks()[0];
+        if (videoTrack && videoTrack.readyState === "live" && videoTrack.enabled) {
+          videoEl.play().catch(() => {});
+        }
+      }
+
       if (!recognizer || !videoEl || videoEl.readyState < 2) {
+        // Stalled video element recovery: if we are live and enabled but readyState is stuck
+        // under 2 for over 3 seconds, reset the stream source to trigger auto-recovery.
+        if (videoEl && !videoEl.paused && videoEl.srcObject) {
+          const activeStream = videoEl.srcObject as MediaStream;
+          const videoTrack = activeStream.getVideoTracks()[0];
+          if (videoTrack && videoTrack.readyState === "live" && videoTrack.enabled) {
+            if (!lastFrameTimeRef.current) {
+              lastFrameTimeRef.current = nowMs;
+            }
+            if (nowMs - lastFrameTimeRef.current > 3000) {
+              console.warn("[translation loop] Stalled readyState recovery triggered");
+              videoEl.srcObject = null;
+              videoEl.srcObject = activeStream;
+              videoEl.play().catch(() => {});
+              lastFrameTimeRef.current = nowMs;
+            }
+          }
+        }
         rafRef.current = requestAnimationFrame(detectLoop);
         return;
       }
+      lastFrameTimeRef.current = nowMs;
 
-      const nowMs = performance.now();
       if (nowMs - lastCheckRef.current >= 180) {
         lastCheckRef.current = nowMs;
         const results = recognizer.recognizeForVideo(videoEl, nowMs);
@@ -83,30 +119,45 @@ export function useSignLanguageTranslation(
         const detectedCategory = topGesture && topGesture.score >= 0.6 ? topGesture.categoryName : "none";
 
         gestureHistoryRef.current.push(detectedCategory);
-        if (gestureHistoryRef.current.length > 4) {
+        if (gestureHistoryRef.current.length > 8) {
           gestureHistoryRef.current.shift();
         }
 
         const counts: Record<string, number> = {};
-        let maxCount = 0;
-        let majorityGesture = "none";
         for (const g of gestureHistoryRef.current) {
           counts[g] = (counts[g] || 0) + 1;
-          if (counts[g] > maxCount) {
-            maxCount = counts[g];
+        }
+
+        let majorityGesture = "none";
+        let maxCount = 0;
+        for (const [g, count] of Object.entries(counts)) {
+          if (count > maxCount) {
+            maxCount = count;
             majorityGesture = g;
           }
         }
 
-        if (majorityGesture !== "none" && majorityGesture !== lastGestureRef.current) {
-          const word = gestureLabelToText(majorityGesture);
-          if (word) {
+        // Require at least 5 frames of consensus in our 8-frame window (62.5% consensus) to trigger.
+        if (majorityGesture !== "none" && maxCount >= 5) {
+          if (majorityGesture !== lastGestureRef.current) {
             lastGestureRef.current = majorityGesture;
-            handleNewTranslation({
-              word,
-              confidence: Math.max(0.7, Math.min(0.98, topGesture?.score ?? 0.7)),
-              mode: "local",
-            });
+            const word = gestureLabelToText(majorityGesture);
+            if (word) {
+              handleNewTranslation({
+                word,
+                confidence: Math.max(0.7, Math.min(0.98, topGesture?.score ?? 0.7)),
+                mode: "local",
+              });
+            }
+          } else {
+            // Same gesture is held: refresh clean/clear timer
+            if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+            clearTimerRef.current = setTimeout(() => {
+              setResult(null);
+              lastSpokenRef.current = null;
+              lastGestureRef.current = null;
+              gestureHistoryRef.current = [];
+            }, 3000);
           }
         }
       }
@@ -124,18 +175,19 @@ export function useSignLanguageTranslation(
       lastGestureRef.current = null;
       gestureHistoryRef.current = [];
     };
-  }, [enabled, stream]);
+  }, [enabled, stream, modelReady]);
 
-  // Handle SpeechSynthesis (TTS) and UI auto-clearing
+  // Handle SpeechSynthesis (TTS) via central queue and UI auto-clearing
   function handleNewTranslation(res: TranslationResult) {
     setResult(res);
 
-    // Speak it out loud if it's new.
+    // Speak it out loud via unified speechQueue if it's new.
     if (res.word && res.word !== lastSpokenRef.current) {
       lastSpokenRef.current = res.word;
-      const utterance = new SpeechSynthesisUtterance(res.word);
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
+      speechQueue.enqueue({
+        id: `translation-${res.word}-${Date.now()}`,
+        text: res.word,
+      });
     }
 
     // Clear after 3 seconds of inactivity.
@@ -151,14 +203,14 @@ export function useSignLanguageTranslation(
   // Cancel speech synthesis immediately if the panel is disabled or hook unmounts
   useEffect(() => {
     if (!enabled) {
-      window.speechSynthesis.cancel();
+      speechQueue.cancelAll();
       lastSpokenRef.current = null;
     }
   }, [enabled]);
 
   useEffect(() => {
     return () => {
-      window.speechSynthesis.cancel();
+      speechQueue.cancelAll();
     };
   }, []);
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { HandIcon } from "../icons";
+import { speechQueue } from "../../lib/speechQueue";
 import "./RecognitionPanel.css";
 
 interface RecognitionPanelProps {
@@ -20,8 +21,10 @@ export function RecognitionPanel({
   useEffect(() => {
     if (result && result.text !== lastSpokenRef.current) {
       lastSpokenRef.current = result.text;
-      const utterance = new SpeechSynthesisUtterance(result.text);
-      window.speechSynthesis.speak(utterance);
+      speechQueue.enqueue({
+        id: `recognition-${result.text}-${Date.now()}`,
+        text: result.text,
+      });
     }
   }, [result]);
 
