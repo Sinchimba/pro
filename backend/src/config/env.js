@@ -1,4 +1,15 @@
 
+try {
+  process.loadEnvFile(".env.local");
+} catch (e) {
+  // Ignore if .env.local doesn't exist
+}
+try {
+  process.loadEnvFile(".env");
+} catch (e) {
+  // Ignore if .env doesn't exist
+}
+
 export const config = {
   PORT: process.env.PORT || 4000,
   FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",

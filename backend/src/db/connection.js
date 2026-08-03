@@ -7,7 +7,10 @@ if (config.DATABASE_URL) {
   console.log("[db] Using PostgreSQL database...");
   const pg = await import("pg");
   const { Pool } = pg.default || pg;
-  const isProduction = process.env.NODE_ENV === "production" || config.DATABASE_URL.includes("render.com");
+  const isProduction =
+    process.env.NODE_ENV === "production" ||
+    process.env.RENDER === "true" ||
+    config.DATABASE_URL.includes("render.com");
 
   const pool = new Pool({
     connectionString: config.DATABASE_URL,

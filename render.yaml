@@ -13,6 +13,8 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22.22.3"
+      - key: NODE_ENV
+        value: production
       - key: JWT_SECRET
         generateValue: true
       - key: GEMINI_API_KEY
