@@ -17,10 +17,14 @@ export function VideoTile({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.srcObject = stream;
+      videoEl.play().catch((err) => {
+        console.warn(`[VideoTile] Autoplay/playback blocked for "${label}":`, err);
+      });
     }
-  }, [stream]);
+  }, [stream, label]);
 
   return (
     <div className={`video-tile ${muted ? "self" : ""}`}>

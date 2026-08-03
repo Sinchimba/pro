@@ -73,10 +73,44 @@ export function useWebRTC(
           );
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
+        let stream: MediaStream;
+        let initialVideoEnabled = true;
+        let initialAudioEnabled = true;
+
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+        } catch (initialErr) {
+          console.warn("[useWebRTC] Both video & audio access failed, trying video-only...", initialErr);
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+            initialAudioEnabled = false;
+            setIsAudioEnabled(false);
+          } catch (videoErr) {
+            console.warn("[useWebRTC] Video-only access failed, trying audio-only...", videoErr);
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({
+                video: false,
+                audio: true,
+              });
+              initialVideoEnabled = false;
+              setIsVideoEnabled(false);
+            } catch (audioErr) {
+              console.warn("[useWebRTC] Audio-only access failed, joining as listener-only...", audioErr);
+              stream = new MediaStream();
+              initialVideoEnabled = false;
+              initialAudioEnabled = false;
+              setIsVideoEnabled(false);
+              setIsAudioEnabled(false);
+            }
+          }
+        }
+
         if (cancelled) {
           stream.getTracks().forEach((t) => t.stop());
           return;
@@ -89,6 +123,13 @@ export function useWebRTC(
           setMySocketId(socket.id ?? null);
           socket.emit("join-room", { roomId, displayName, userId });
           setJoined(true);
+
+          if (!initialVideoEnabled) {
+            socket.emit("toggle-video", { roomId, enabled: false });
+          }
+          if (!initialAudioEnabled) {
+            socket.emit("toggle-audio", { roomId, enabled: false });
+          }
         };
 
         // Attach authentication credentials for the Socket handshake
@@ -196,8 +237,16 @@ export function useWebRTC(
           console.warn(`[WebRTC] ICE connection failed for ${remoteSocketId}, attempting restart...`);
           try {
             pc.restartIce();
+            pc.createOffer({ iceRestart: true })
+              .then(async (offer) => {
+                await pc.setLocalDescription(offer);
+                socket.emit("offer", { targetSocketId: remoteSocketId, offer });
+              })
+              .catch((err) => {
+                console.error(`[WebRTC] ICE restart offer creation failed for ${remoteSocketId}:`, err);
+              });
           } catch (e) {
-            console.error("[WebRTC] restartIce failed:", e);
+            console.error(`[WebRTC] restartIce failed for ${remoteSocketId}:`, e);
           }
         }
       };

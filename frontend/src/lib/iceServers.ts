@@ -1,7 +1,27 @@
-// ICE servers used for NAT traversal.
-// STUN (free, Google's public server) handles most cases.
-// TURN is a fallback for restrictive networks — replace the placeholder
-// below with your own TURN server details before your remote-network demo.
+const envTurnUrl = import.meta.env.VITE_TURN_URL;
+const envTurnUsername = import.meta.env.VITE_TURN_USERNAME;
+const envTurnCredential = import.meta.env.VITE_TURN_CREDENTIAL;
+
+const turnServers: RTCIceServer[] = envTurnUrl
+  ? [
+      {
+        urls: envTurnUrl.split(",").map((url) => url.trim()),
+        username: envTurnUsername,
+        credential: envTurnCredential,
+      },
+    ]
+  : [
+      {
+        urls: [
+          "turn:openrelay.metered.ca:80",
+          "turn:openrelay.metered.ca:443",
+          "turn:openrelay.metered.ca:443?transport=tcp",
+        ],
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+    ];
+
 export const iceServers: RTCIceServer[] = [
   {
     urls: [
@@ -10,12 +30,8 @@ export const iceServers: RTCIceServer[] = [
       "stun:stun2.l.google.com:19302",
       "stun:stun3.l.google.com:19302",
       "stun:stun4.l.google.com:19302",
+      "stun:openrelay.metered.ca:80",
     ],
   },
-  // Example TURN config — uncomment and fill in once you have one:
-  // {
-  //   urls: "turn:your-turn-server.com:3478",
-  //   username: "your-username",
-  //   credential: "your-credential",
-  // },
+  ...turnServers,
 ];
