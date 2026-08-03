@@ -185,9 +185,11 @@ io.on("connection", (socket) => {
   // Relayed signaling events - restricted to target sockets sharing the exact same room
   socket.on("offer", ({ targetSocketId, offer }) => {
     if (!offer || typeof targetSocketId !== "string") return;
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
-    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
-      logger.security("Relay offer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room || !room.has(targetSocketId)) {
+      logger.security("Relay offer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId, roomId });
       return;
     }
     io.to(targetSocketId).emit("offer", {
@@ -198,9 +200,11 @@ io.on("connection", (socket) => {
 
   socket.on("answer", ({ targetSocketId, answer }) => {
     if (!answer || typeof targetSocketId !== "string") return;
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
-    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
-      logger.security("Relay answer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room || !room.has(targetSocketId)) {
+      logger.security("Relay answer blocked: target socket not in same room", { sender: socket.id, target: targetSocketId, roomId });
       return;
     }
     io.to(targetSocketId).emit("answer", {
@@ -211,9 +215,11 @@ io.on("connection", (socket) => {
 
   socket.on("ice-candidate", ({ targetSocketId, candidate }) => {
     if (!candidate || typeof targetSocketId !== "string") return;
-    const targetSocket = io.sockets.sockets.get(targetSocketId);
-    if (!targetSocket || targetSocket.data.roomId !== socket.data.roomId) {
-      logger.security("Relay ICE candidate blocked: target socket not in same room", { sender: socket.id, target: targetSocketId });
+    const roomId = socket.data.roomId;
+    if (!roomId) return;
+    const room = io.sockets.adapter.rooms.get(roomId);
+    if (!room || !room.has(targetSocketId)) {
+      logger.security("Relay ICE candidate blocked: target socket not in same room", { sender: socket.id, target: targetSocketId, roomId });
       return;
     }
     io.to(targetSocketId).emit("ice-candidate", {
