@@ -1111,7 +1111,7 @@ function VideoElement({
         document.removeEventListener("click", playOnInteraction);
       }
     };
-  }, [stream]);
+  }, [stream, stream.getTracks().length]);
 
   return (
     <video

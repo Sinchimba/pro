@@ -193,6 +193,8 @@ export function useWebRTC(
       pc.ontrack = (event) => {
         console.log(`[WebRTC] Received remote track:`, event.track.kind, `from:`, remoteSocketId);
         
+        const remoteStream = event.streams[0] || new MediaStream([event.track]);
+
         setRemoteStreams((prev) => {
           const existingIndex = prev.findIndex((r) => r.socketId === remoteSocketId);
           if (existingIndex !== -1) {
@@ -200,20 +202,16 @@ export function useWebRTC(
             if (!existingStream.getTracks().some((t) => t.id === event.track.id)) {
               existingStream.addTrack(event.track);
             }
-            const updatedStream = new MediaStream(existingStream.getTracks());
             const updated = [...prev];
-            updated[existingIndex] = { ...updated[existingIndex], stream: updatedStream };
+            updated[existingIndex] = { ...updated[existingIndex], stream: existingStream };
             return updated;
           } else {
-            const streamToUse = event.streams[0]
-              ? new MediaStream(event.streams[0].getTracks())
-              : new MediaStream([event.track]);
             return [
               ...prev,
               {
                 socketId: remoteSocketId,
                 name,
-                stream: streamToUse,
+                stream: remoteStream,
                 videoOff: initialVideoOff,
                 audioOff: initialAudioOff,
               },
