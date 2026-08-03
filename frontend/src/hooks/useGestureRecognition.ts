@@ -9,6 +9,7 @@ const HOLD_MS = 2500;
 interface GestureResult {
   gesture: string; // e.g. "Thumb_Up"
   text: string; // mapped vocabulary text, e.g. "yes"
+  confidence: number;
 }
 
 /**
@@ -157,7 +158,8 @@ export function useGestureRecognition(
             lastGestureRef.current = majorityGesture;
             const text = gestureLabelToText(majorityGesture);
             if (text) {
-              setResult({ gesture: majorityGesture, text });
+              const confidence = topGesture && typeof topGesture.score === "number" ? topGesture.score : 0.8;
+              setResult({ gesture: majorityGesture, text, confidence });
             }
           }
           // Refresh the hold timer while the same gesture (or a new stable one) continues to be held

@@ -1,32 +1,23 @@
-import { useState, useRef, useEffect } from "react";
+import { useRef, useState } from "react";
 import type { MouseEvent } from "react";
-import { useSignLanguageTranslation } from "../../hooks/useSignLanguageTranslation";
 import { HandIcon } from "./Icons";
 import "./SignTranslationPanel.css";
 
 interface SignTranslationPanelProps {
-  stream: MediaStream | null;
-  onTranslation?: (word: string, confidence: number, mode: "local" | "cloud") => void;
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  result: { text: string; confidence: number; mode: string } | null;
+  isLoading: boolean;
+  loadError: string | null;
 }
 
-export function SignTranslationPanel({ stream, onTranslation }: SignTranslationPanelProps) {
-  const [enabled, setEnabled] = useState(false);
-
-  // Local MediaPipe-only sign recognition for demonstration stability.
-  const { result, isLoading, loadError } = useSignLanguageTranslation(
-    stream,
-    enabled,
-    "local",
-    "ASL"
-  );
-
-  // Propagate translation results to listeners
-  useEffect(() => {
-    if (enabled && result && result.word && onTranslation) {
-      onTranslation(result.word, result.confidence, result.mode as any);
-    }
-  }, [result, enabled, onTranslation]);
-
+export function SignTranslationPanel({
+  enabled,
+  onToggle,
+  result,
+  isLoading,
+  loadError,
+}: SignTranslationPanelProps) {
   // Drag and resize position states
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState({ width: 440, height: 160 });
@@ -116,7 +107,7 @@ export function SignTranslationPanel({ stream, onTranslation }: SignTranslationP
         
         <button
           className={`sign-trans-toggle-btn ${enabled ? "enabled" : ""}`}
-          onClick={() => setEnabled((e) => !e)}
+          onClick={() => onToggle(!enabled)}
         >
           {enabled ? "ON" : "OFF"}
         </button>
@@ -140,9 +131,9 @@ export function SignTranslationPanel({ stream, onTranslation }: SignTranslationP
             Ready. Gesture clearly in front of the camera...
           </span>
         )}
-        {enabled && !isLoading && result && result.word && (
+        {enabled && !isLoading && result && result.text && (
           <div className="sign-trans-output-wrapper">
-            <p className="sign-trans-text">{result.word}</p>
+            <p className="sign-trans-text">{result.text}</p>
             <div className="sign-trans-meta">
               <span className="sign-trans-badge">MediaPipe</span>
               {result.confidence > 0 && (

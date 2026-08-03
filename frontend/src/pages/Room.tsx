@@ -308,11 +308,13 @@ export function Room({ roomId, onLeave }: RoomProps) {
     };
   }, []);
 
+  const [isTranslatorEnabled, setIsTranslatorEnabled] = useState(false);
+
   const {
     result: recognitionResult,
     isLoading: recognitionLoading,
     loadError: recognitionError,
-  } = useGestureRecognition(localStream, joined && isVideoEnabled);
+  } = useGestureRecognition(localStream, joined && isVideoEnabled && isTranslatorEnabled);
 
   // Redesign state variables
   const [copied, setCopied] = useState(false);
@@ -362,7 +364,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
       speechQueue.enqueue({
         id: eventId,
         text: word,
-        silent: socketId === socket.id,
+        silent: true, // Always silent for Speech-to-Sign, as the voice is already sent via WebRTC
         onStart: () => {
           setActiveSign({ word, videoUrl });
           setActiveCaption({
@@ -391,7 +393,7 @@ export function Room({ roomId, onLeave }: RoomProps) {
       socket.emit("sign-translation", {
         roomId,
         word: recognitionResult.text,
-        confidence: 1.0,
+        confidence: recognitionResult.confidence ?? 1.0,
         mode: "local",
         name: myName,
       });
@@ -405,6 +407,14 @@ export function Room({ roomId, onLeave }: RoomProps) {
         type: "Sign",
         timestamp: Date.now(),
       });
+
+      // Play Text-to-Speech feedback locally for the signer so they hear their own translation
+      speechQueue.enqueue({
+        id: `sign-trans-local-${recognitionResult.text}-${Date.now()}`,
+        text: recognitionResult.text,
+        silent: false, // Speak out loud locally for translation feedback
+      });
+
       setTimeout(() => {
         setActiveTranslations((prev) => {
           const current = prev.local;
@@ -770,43 +780,11 @@ export function Room({ roomId, onLeave }: RoomProps) {
 
           {/* Real-time Sign Language Translator (Camera to spoken words) */}
           <SignTranslationPanel
-            stream={localStream}
-            onTranslation={(word, confidence, mode) => {
-              if (joined) {
-                // Emit to other users
-                socket.emit("sign-translation", {
-                  roomId,
-                  word,
-                  confidence,
-                  mode,
-                  name: myName,
-                });
-                // Update local tile overlay
-                setActiveTranslations((prev) => ({
-                  ...prev,
-                  local: { word, timestamp: Date.now() },
-                }));
-                // Update the live caption overlay with the translated gesture
-                setActiveCaption({
-                  speakerName: "You",
-                  text: word,
-                  type: "Sign",
-                  timestamp: Date.now(),
-                });
-                // Automatically clear local translation after 3 seconds
-                setTimeout(() => {
-                  setActiveTranslations((prev) => {
-                    const current = prev.local;
-                    if (current && Date.now() - current.timestamp >= 3000) {
-                      const next = { ...prev };
-                      delete next.local;
-                      return next;
-                    }
-                    return prev;
-                  });
-                }, 3000);
-              }
-            }}
+            enabled={isTranslatorEnabled}
+            onToggle={setIsTranslatorEnabled}
+            result={recognitionResult ? { text: recognitionResult.text, confidence: recognitionResult.confidence, mode: "local" } : null}
+            isLoading={recognitionLoading}
+            loadError={recognitionError}
           />
 
           {/* Real-time transcript log */}

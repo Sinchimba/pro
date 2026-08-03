@@ -14,6 +14,7 @@ class SpeechQueue {
   private speaking = false;
   private currentUtterance: SpeechSynthesisUtterance | null = null;
   private playedIds = new Set<string>();
+  private currentTimeoutId: number | null = null;
 
   public enqueue(item: SpeechQueueItem) {
     // Avoid duplicate requests within a short timeframe (e.g. 1.5 seconds)
@@ -37,12 +38,32 @@ class SpeechQueue {
 
     this.speaking = true;
 
+    if (item.silent) {
+      if (item.onStart) {
+        try {
+          item.onStart();
+        } catch (e) {
+          console.error("[SpeechQueue] error in onStart:", e);
+        }
+      }
+      const duration = Math.max(1500, item.text.length * 120);
+      this.currentTimeoutId = window.setTimeout(() => {
+        this.speaking = false;
+        this.currentTimeoutId = null;
+        if (item.onEnd) {
+          try {
+            item.onEnd();
+          } catch (e) {
+            console.error("[SpeechQueue] error in onEnd:", e);
+          }
+        }
+        setTimeout(() => this.processNext(), 150);
+      }, duration);
+      return;
+    }
+
     const utterance = new SpeechSynthesisUtterance(item.text);
     this.currentUtterance = utterance;
-
-    if (item.silent) {
-      utterance.volume = 0;
-    }
 
     utterance.onstart = () => {
       if (item.onStart) {
@@ -54,7 +75,10 @@ class SpeechQueue {
       if (!this.speaking) return;
       this.speaking = false;
       this.currentUtterance = null;
-      window.clearTimeout(timeoutId);
+      if (this.currentTimeoutId) {
+        window.clearTimeout(this.currentTimeoutId);
+        this.currentTimeoutId = null;
+      }
       if (item.onEnd) {
         item.onEnd();
       }
@@ -68,7 +92,7 @@ class SpeechQueue {
     };
 
     // Safety timeout in case speech synthesis fails silently or is blocked by browser policies
-    const timeoutId = window.setTimeout(() => {
+    this.currentTimeoutId = window.setTimeout(() => {
       if (this.currentUtterance === utterance && this.speaking) {
         console.warn("[SpeechQueue] SpeechSynthesis timed out. Force recovering...");
         handleEnd();
@@ -83,6 +107,10 @@ class SpeechQueue {
     this.speaking = false;
     this.currentUtterance = null;
     this.playedIds.clear();
+    if (this.currentTimeoutId) {
+      window.clearTimeout(this.currentTimeoutId);
+      this.currentTimeoutId = null;
+    }
     window.speechSynthesis.cancel();
   }
 }

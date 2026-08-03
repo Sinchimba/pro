@@ -1,4 +1,8 @@
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (import.meta.env.PROD ? "" : "http://localhost:4000");
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || (
+  import.meta.env.PROD 
+    ? "" 
+    : `${window.location.protocol}//${window.location.hostname}:4000`
+);
 
 export type Role = "normal" | "deaf" | "mute";
 
